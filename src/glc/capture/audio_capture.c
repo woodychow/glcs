@@ -49,8 +49,7 @@ int audio_capture_write_cfg(audio_capture_t audio_capture);
 
 int audio_capture_init(audio_capture_t *audio_capture, glc_t *glc)
 {
-	*audio_capture = (audio_capture_t) malloc(sizeof(struct audio_capture_s));
-	memset(*audio_capture, 0, sizeof(struct audio_capture_s));
+	*audio_capture = (audio_capture_t) calloc(1, sizeof(struct audio_capture_s));
 
 	(*audio_capture)->glc = glc;
 

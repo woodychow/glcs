@@ -116,8 +116,7 @@ int rgb_convert_lookup(rgb_t rgb, struct rgb_video_stream_s *ctx,
 
 int rgb_init(rgb_t *rgb, glc_t *glc)
 {
-	*rgb = (rgb_t) malloc(sizeof(struct rgb_s));
-	memset(*rgb, 0, sizeof(struct rgb_s));
+	*rgb = (rgb_t) calloc(1, sizeof(struct rgb_s));
 
 	(*rgb)->glc = glc;
 
@@ -236,8 +235,7 @@ void rgbget_video_stream(rgb_t rgb, glc_stream_id_t id,
 	}
 
 	if (*ctx == NULL) {
-		*ctx = malloc(sizeof(struct rgb_video_stream_s));
-		memset(*ctx, 0, sizeof(struct rgb_video_stream_s));
+		*ctx = (struct rgb_video_stream_s *) calloc(1, sizeof(struct rgb_video_stream_s));
 		
 		(*ctx)->next = rgb->ctx;
 		rgb->ctx = *ctx;

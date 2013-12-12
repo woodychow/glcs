@@ -72,8 +72,7 @@ int alsa_capture_stop(alsa_capture_t alsa_capture);
 
 int alsa_capture_init(alsa_capture_t *alsa_capture, glc_t *glc)
 {
-	*alsa_capture = (alsa_capture_t) malloc(sizeof(struct alsa_capture_s));
-	memset(*alsa_capture, 0, sizeof(struct alsa_capture_s));
+	*alsa_capture = (alsa_capture_t) calloc(1, sizeof(struct alsa_capture_s));
 
 	(*alsa_capture)->glc = glc;
 	(*alsa_capture)->device = "default";

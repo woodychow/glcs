@@ -105,8 +105,7 @@ glc_audio_format_t pcm_fmt_to_glc_fmt(snd_pcm_format_t pcm_fmt);
 
 int alsa_hook_init(alsa_hook_t *alsa_hook, glc_t *glc)
 {
-	*alsa_hook = (alsa_hook_t) malloc(sizeof(struct alsa_hook_s));
-	memset(*alsa_hook, 0, sizeof(struct alsa_hook_s));
+	*alsa_hook = (alsa_hook_t) calloc(1, sizeof(struct alsa_hook_s));
 
 	(*alsa_hook)->glc = glc;
 
@@ -252,8 +251,7 @@ int alsa_hook_get_stream(alsa_hook_t alsa_hook, snd_pcm_t *pcm, struct alsa_hook
 	}
 
 	if (find == NULL) {
-		find = (struct alsa_hook_stream_s *) malloc(sizeof(struct alsa_hook_stream_s));
-		memset(find, 0, sizeof(struct alsa_hook_stream_s));
+		find = (struct alsa_hook_stream_s *) calloc(1, sizeof(struct alsa_hook_stream_s));
 		find->pcm = pcm;
 
 		find->id = 0; /* zero until it is initialized */

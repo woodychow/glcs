@@ -32,8 +32,7 @@ void glc_log_write_prefix(glc_t *glc, FILE *stream, int level, const char *modul
 
 int glc_log_init(glc_t *glc)
 {
-	glc->log = (glc_log_t) malloc(sizeof(struct glc_log_s));
-	memset(glc->log, 0, sizeof(struct glc_log_s));
+	glc->log = (glc_log_t) calloc(1, sizeof(struct glc_log_s));
 
 	pthread_mutex_init(&glc->log->log_mutex, NULL);
 	glc->log->default_stream = stderr;
@@ -55,6 +54,9 @@ int glc_log_open_file(glc_t *glc, const char *filename)
 	FILE *stream = fopen(filename, "w");
 	if (!stream)
 		return errno;
+
+	/* line buffered like stderr */
+	setvbuf( stream, NULL, _IOLBF, 0 );
 
 	if ((ret = glc_log_set_stream(glc, stream))) {
 		fclose(stream);

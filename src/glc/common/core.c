@@ -42,8 +42,7 @@ int glc_init(glc_t *glc)
 	glc->util = NULL;
 	glc->log = NULL;
 
-	glc->core = (glc_core_t) malloc(sizeof(struct glc_core_s));
-	memset(glc->core, 0, sizeof(struct glc_core_s));
+	glc->core = (glc_core_t) calloc(1, sizeof(struct glc_core_s));
 
 	gettimeofday(&glc->core->init_time, NULL);
 	glc->core->threads_hint = sysconf(_SC_NPROCESSORS_ONLN);

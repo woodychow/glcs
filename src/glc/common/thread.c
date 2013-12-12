@@ -54,9 +54,9 @@ int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_bu
 	if (thread->threads < 1)
 		return EINVAL;
 
-	if (!(private = (struct glc_thread_private_s *) malloc(sizeof(struct glc_thread_private_s))))
+	if (!(private = (struct glc_thread_private_s *)
+		calloc(1, sizeof(struct glc_thread_private_s))))
 		return ENOMEM;
-	memset(private, 0, sizeof(struct glc_thread_private_s));
 
 	thread->priv = private;
 	private->glc = glc;

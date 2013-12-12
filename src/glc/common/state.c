@@ -51,8 +51,7 @@ struct glc_state_s {
 int glc_state_init(glc_t *glc)
 {
 	glc->state_flags = 0;
-	glc->state = (glc_state_t) malloc(sizeof(struct glc_state_s));
-	memset(glc->state, 0, sizeof(struct glc_state_s));
+	glc->state = (glc_state_t) calloc(1, sizeof(struct glc_state_s));
 
 	pthread_rwlock_init(&glc->state->state_rwlock, NULL);
 	pthread_rwlock_init(&glc->state->time_rwlock, NULL);
@@ -97,8 +96,7 @@ int glc_state_destroy(glc_t *glc)
 int glc_state_video_new(glc_t *glc, glc_stream_id_t *id,
 			glc_state_video_t *video)
 {
-	*video = (glc_state_video_t) malloc(sizeof(struct glc_state_video_s));
-	memset(*video, 0, sizeof(struct glc_state_video_s));
+	*video = (glc_state_video_t) calloc(1, sizeof(struct glc_state_video_s));
 
 	pthread_rwlock_wrlock(&glc->state->video_rwlock);
 	(*video)->id = ++glc->state->video_count;
@@ -113,8 +111,7 @@ int glc_state_video_new(glc_t *glc, glc_stream_id_t *id,
 int glc_state_audio_new(glc_t *glc, glc_stream_id_t *id,
 			glc_state_audio_t *audio)
 {
-	*audio = (glc_state_audio_t) malloc(sizeof(struct glc_state_audio_s));
-	memset(*audio, 0, sizeof(struct glc_state_audio_s));
+	*audio = (glc_state_audio_t) calloc(1, sizeof(struct glc_state_audio_s));
 
 	pthread_rwlock_wrlock(&glc->state->audio_rwlock);
 	(*audio)->id = ++glc->state->audio_count;

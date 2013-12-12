@@ -92,8 +92,7 @@ void scale_ycbcr_scale(scale_t scale, struct scale_video_stream_s *video,
 
 int scale_init(scale_t *scale, glc_t *glc)
 {
-	*scale = malloc(sizeof(struct scale_s));
-	memset(*scale, 0, sizeof(struct scale_s));
+	*scale = calloc(1, sizeof(struct scale_s));
 
 	(*scale)->glc = glc;
 
@@ -233,8 +232,8 @@ int scale_get_video_stream(scale_t scale, glc_stream_id_t id, struct scale_video
 	}
 
 	if (list == NULL) {
-		list = (struct scale_video_stream_s *) malloc(sizeof(struct scale_video_stream_s));
-		memset(list, 0, sizeof(struct scale_video_stream_s));
+		list = (struct scale_video_stream_s *)
+			calloc(1, sizeof(struct scale_video_stream_s));
 
 		list->next = scale->video;
 		scale->video = list;

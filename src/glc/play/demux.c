@@ -91,8 +91,7 @@ int demux_audio_stream_clean(demux_t demux, struct demux_audio_stream_s *audio);
 
 int demux_init(demux_t *demux, glc_t *glc)
 {
-	*demux = malloc(sizeof(struct demux_s));
-	memset(*demux, 0, sizeof(struct demux_s));
+	*demux = (struct demux_s *) calloc(1, sizeof(struct demux_s));
 
 	(*demux)->glc = glc;
 	(*demux)->alsa_playback_device = "default";
@@ -330,8 +329,8 @@ int demux_video_stream_get(demux_t demux, glc_stream_id_t id, struct demux_video
 	}
 
 	if (*video == NULL) {
-		*video = malloc(sizeof(struct demux_video_stream_s));
-		memset(*video, 0, sizeof(struct demux_video_stream_s));
+		*video = (struct demux_video_stream_s *)
+			calloc(1, sizeof(struct demux_video_stream_s));
 		(*video)->id = id;
 
 		if ((ret = ps_buffer_init(&(*video)->buffer, &demux->video_bufferattr)))
@@ -434,8 +433,8 @@ int demux_audio_stream_get(demux_t demux, glc_stream_id_t id,
 	}
 
 	if (*audio == NULL) {
-		*audio = malloc(sizeof(struct demux_audio_stream_s));
-		memset(*audio, 0, sizeof(struct demux_audio_stream_s));
+		*audio = (struct demux_audio_stream_s *)
+			calloc(1, sizeof(struct demux_audio_stream_s));
 		(*audio)->id = id;
 
 		if ((ret = ps_buffer_init(&(*audio)->buffer, &demux->audio_bufferattr)))

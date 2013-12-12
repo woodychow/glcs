@@ -97,8 +97,7 @@ int gl_play_next_texture_size(gl_play_t gl_play, unsigned int number);
 
 int gl_play_init(gl_play_t *gl_play, glc_t *glc)
 {
-	*gl_play = (gl_play_t) malloc(sizeof(struct gl_play_s));
-	memset(*gl_play, 0, sizeof(struct gl_play_s));
+	*gl_play = (gl_play_t) calloc(1, sizeof(struct gl_play_s));
 
 	(*gl_play)->glc = glc;
 	(*gl_play)->id = 1;
@@ -431,15 +430,14 @@ int gl_play_create_textures(gl_play_t gl_play)
 	}
 
 	/* create textures */
-	gl_play->tiles = (GLuint *) malloc(sizeof(GLuint) * gl_play->tiles_x * gl_play->tiles_y);
-	memset(gl_play->tiles, 0, sizeof(GLuint) * gl_play->tiles_x * gl_play->tiles_y);
+	gl_play->tiles = (GLuint *) calloc(gl_play->tiles_x * gl_play->tiles_y, sizeof(GLuint));
 
 	glEnable(GL_TEXTURE_2D);
 	glGenTextures(gl_play->tiles_x * gl_play->tiles_y, gl_play->tiles);
 
 	/* data for vertices 4 x 2 coordinates per each */
-	gl_play->vertices = (GLint *) malloc(sizeof(GLint) * gl_play->tiles_x * gl_play->tiles_y * 8);
-	memset(gl_play->vertices, 0, sizeof(GLint) * gl_play->tiles_x * gl_play->tiles_y * 8);
+	gl_play->vertices = (GLint *)
+		calloc(gl_play->tiles_x * gl_play->tiles_y, sizeof(GLint) * 8);
 
 	/* and init data for drawing */
 	height_r = gl_play->h;

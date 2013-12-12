@@ -142,8 +142,7 @@ int gl_capture_read_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_
 
 int gl_capture_init(gl_capture_t *gl_capture, glc_t *glc)
 {
-	*gl_capture = (gl_capture_t) malloc(sizeof(struct gl_capture_s));
-	memset(*gl_capture, 0, sizeof(struct gl_capture_s));
+	*gl_capture = (gl_capture_t) calloc(1, sizeof(struct gl_capture_s));
 
 	(*gl_capture)->glc = glc;
 	(*gl_capture)->fps = 1000000 / 30;		/* default fps is 30 */
@@ -641,8 +640,8 @@ int gl_capture_get_video_stream(gl_capture_t gl_capture, struct gl_capture_video
 	pthread_rwlock_unlock(&gl_capture->videolist_lock);
 	
 	if (fvideo == NULL) {
-		fvideo = (struct gl_capture_video_stream_s *) malloc(sizeof(struct gl_capture_video_stream_s));
-		memset(fvideo, 0, sizeof(struct gl_capture_video_stream_s));
+		fvideo = (struct gl_capture_video_stream_s *)
+			calloc(1, sizeof(struct gl_capture_video_stream_s));
 
 		fvideo->dpy = dpy;
 		fvideo->drawable = drawable;

@@ -72,8 +72,7 @@ int img_write_png(img_t img, const unsigned char *pic,
 
 int img_init(img_t *img, glc_t *glc)
 {
-	*img = (img_t) malloc(sizeof(struct img_s));
-	memset(*img, 0, sizeof(struct img_s));
+	*img = (img_t) calloc(1, sizeof(struct img_s));
 
 	(*img)->glc = glc;
 	(*img)->fps = 30;
@@ -210,7 +209,8 @@ int img_video_format_message(img_t img, glc_video_format_message_t *video_format
 	}
 
 	if (img->prev_video_frame_message)
-		img->prev_video_frame_message = (unsigned char *) realloc(img->prev_video_frame_message, img->row * img->h);
+		img->prev_video_frame_message = (unsigned char *)
+		realloc(img->prev_video_frame_message, img->row * img->h);
 	else
 		img->prev_video_frame_message = (unsigned char *) malloc(img->row * img->h);
 	memset(img->prev_video_frame_message, 0, img->row * img->h);

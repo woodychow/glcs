@@ -53,8 +53,7 @@ int glc_util_utc_date(glc_t *glc, char **date, u_int32_t *date_size);
 
 int glc_util_init(glc_t *glc)
 {
-	glc->util = (glc_util_t) malloc(sizeof(struct glc_util_s));
-	memset(glc->util, 0, sizeof(struct glc_util_s));
+	glc->util = (glc_util_t) calloc(1, sizeof(struct glc_util_s));
 
 	glc->util->fps = 30;
 	glc->util->pid = getpid();
@@ -77,8 +76,7 @@ int glc_util_info_fps(glc_t *glc, double fps)
 int glc_util_info_create(glc_t *glc, glc_stream_info_t **stream_info,
 			 char **info_name, char **info_date)
 {
-	*stream_info = (glc_stream_info_t *) malloc(sizeof(glc_stream_info_t));
-	memset(*stream_info, 0, sizeof(glc_stream_info_t));
+	*stream_info = (glc_stream_info_t *) calloc(1, sizeof(glc_stream_info_t));
 
 	(*stream_info)->signature = GLC_SIGNATURE;
 	(*stream_info)->version = GLC_STREAM_VERSION;

@@ -88,8 +88,7 @@ void print_bytes(FILE *stream, size_t bytes);
 
 int info_init(info_t *info, glc_t *glc)
 {
-	*info = (info_t) malloc(sizeof(struct info_s));
-	memset(*info, 0, sizeof(struct info_s));
+	*info = (info_t) calloc(1, sizeof(struct info_s));
 
 	(*info)->glc = glc;
 	(*info)->video_list = NULL;
@@ -231,8 +230,8 @@ int info_get_video_stream(info_t info, struct info_video_stream_s **video, glc_s
 	}
 
 	if (fvideo == NULL) {
-		fvideo = (struct info_video_stream_s *) malloc(sizeof(struct info_video_stream_s));
-		memset(fvideo, 0, sizeof(struct info_video_stream_s));
+		fvideo = (struct info_video_stream_s *)
+			calloc(1, sizeof(struct info_video_stream_s));
 
 		fvideo->next = info->video_list;
 		info->video_list = fvideo;
@@ -256,8 +255,7 @@ int info_get_audio_stream(info_t info, struct info_audio_stream_s **audio,
 	}
 
 	if (*audio == NULL) {
-		*audio = malloc(sizeof(struct info_audio_stream_s));
-		memset(*audio, 0, sizeof(struct info_audio_stream_s));
+		*audio = calloc(1, sizeof(struct info_audio_stream_s));
 
 		(*audio)->next = info->audio_list;
 		info->audio_list = *audio;

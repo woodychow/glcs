@@ -53,9 +53,7 @@ struct tracker_audio_s *tracker_get_audio_stream(tracker_t tracker, glc_stream_i
 
 int tracker_init(tracker_t *tracker, glc_t *glc)
 {
-	*tracker = (tracker_t) malloc(sizeof(struct tracker_s));
-	memset(*tracker, 0, sizeof(struct tracker_s));
-
+	*tracker = (tracker_t) calloc(1, sizeof(struct tracker_s));
 	return 0;
 }
 
@@ -91,8 +89,7 @@ struct tracker_video_s *tracker_get_video_stream(tracker_t tracker, glc_stream_i
 	}
 
 	if (video == NULL) {
-		video = malloc(sizeof(struct tracker_video_s));
-		memset(video, 0, sizeof(struct tracker_video_s));
+		video = (struct tracker_video_s *) calloc(1, sizeof(struct tracker_video_s));
 
 		video->next = tracker->video_streams;
 		tracker->video_streams = video;
@@ -112,8 +109,7 @@ struct tracker_audio_s *tracker_get_audio_stream(tracker_t tracker, glc_stream_i
 	}
 
 	if (audio == NULL) {
-		audio = malloc(sizeof(struct tracker_audio_s));
-		memset(audio, 0, sizeof(struct tracker_audio_s));
+		audio = (struct tracker_audio_s *) calloc(1, sizeof(struct tracker_audio_s));
 
 		audio->next = tracker->audio_streams;
 		tracker->audio_streams = audio;

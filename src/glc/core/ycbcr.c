@@ -107,8 +107,7 @@ void ycbcr_bgr_to_jpeg420_scale(ycbcr_t ycbcr, struct ycbcr_video_stream_s *vide
 
 int ycbcr_init(ycbcr_t *ycbcr, glc_t *glc)
 {
-	*ycbcr = malloc(sizeof(struct ycbcr_s));
-	memset(*ycbcr, 0, sizeof(struct ycbcr_s));
+	*ycbcr = (struct ycbcr_s *) calloc(1, sizeof(struct ycbcr_s));
 
 	(*ycbcr)->glc = glc;
 
@@ -240,8 +239,8 @@ void ycbcr_get_video_stream(ycbcr_t ycbcr, glc_stream_id_t id, struct ycbcr_vide
 	}
 
 	if (*video == NULL) {
-		*video = malloc(sizeof(struct ycbcr_video_stream_s));
-		memset(*video, 0, sizeof(struct ycbcr_video_stream_s));
+		*video = (struct ycbcr_video_stream_s *)
+			calloc(1, sizeof(struct ycbcr_video_stream_s));
 
 		(*video)->next = ycbcr->video;
 		ycbcr->video = *video;

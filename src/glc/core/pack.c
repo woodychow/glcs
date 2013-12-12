@@ -77,8 +77,7 @@ void unpack_finish_callback(void *ptr, int err);
 
 int pack_init(pack_t *pack, glc_t *glc)
 {
-	*pack = (pack_t) malloc(sizeof(struct pack_s));
-	memset(*pack, 0, sizeof(struct pack_s));
+	*pack = (pack_t) calloc(1, sizeof(struct pack_s));
 
 	(*pack)->glc = glc;
 	(*pack)->compress_min = 1024;
@@ -351,8 +350,7 @@ int pack_lzjb_write_callback(glc_thread_state_t *state)
 
 int unpack_init(unpack_t *unpack, glc_t *glc)
 {
-	*unpack = (unpack_t) malloc(sizeof(struct unpack_s));
-	memset(*unpack, 0, sizeof(struct unpack_s));
+	*unpack = (unpack_t) calloc(sizeof(struct unpack_s));
 
 	(*unpack)->glc = glc;
 

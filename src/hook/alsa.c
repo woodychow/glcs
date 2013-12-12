@@ -122,8 +122,8 @@ int alsa_parse_capture_cfg(const char *cfg)
 			sscanf(args, ",%u,%u", &rate, &channels);
 		next = strstr(device, ";");
 
-		stream = malloc(sizeof(struct alsa_capture_stream_s));
-		memset(stream, 0, sizeof(struct alsa_capture_stream_s));
+		stream = (struct alsa_capture_stream_s *)
+			calloc(1, sizeof(struct alsa_capture_stream_s));
 
 		if (args)
 			len = args - device;
@@ -132,7 +132,7 @@ int alsa_parse_capture_cfg(const char *cfg)
 		else
 			len = strlen(device);
 
-		stream->device = (char *) malloc(sizeof(char) * len);
+		stream->device = (char *) malloc(sizeof(char) * (len+1));
 		memcpy(stream->device, device, len);
 		stream->device[len] = '\0';
 

@@ -61,8 +61,7 @@ int file_write_state_callback(glc_message_header_t *header, void *message, size_
 
 int file_init(file_t *file, glc_t *glc)
 {
-	*file = malloc(sizeof(struct file_s));
-	memset(*file, 0, sizeof(struct file_s));
+	*file = calloc(1, sizeof(struct file_s));
 
 	(*file)->glc = glc;
 	(*file)->fd = -1;

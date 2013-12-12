@@ -102,8 +102,7 @@ __inline__ unsigned char color_clamp(int val)
 
 int color_init(color_t *color, glc_t *glc)
 {
-	*color = malloc(sizeof(struct color_s));
-	memset(*color, 0, sizeof(struct color_s));
+	*color = calloc(1, sizeof(struct color_s));
 
 	(*color)->glc = glc;
 
@@ -246,8 +245,7 @@ void color_get_video_stream(color_t color, glc_stream_id_t id,
 	}
 
 	if (*video == NULL) {
-		*video = malloc(sizeof(struct color_video_stream_s));
-		memset(*video, 0, sizeof(struct color_video_stream_s));
+		*video = calloc(1, sizeof(struct color_video_stream_s));
 
 		(*video)->next = color->video;
 		color->video = *video;

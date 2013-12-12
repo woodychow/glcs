@@ -58,8 +58,7 @@ int yuv4mpeg_write_video_frame_message(yuv4mpeg_t yuv4mpeg, char *pic);
 
 int yuv4mpeg_init(yuv4mpeg_t *yuv4mpeg, glc_t *glc)
 {
-	*yuv4mpeg = (yuv4mpeg_t) malloc(sizeof(struct yuv4mpeg_s));
-	memset(*yuv4mpeg, 0, sizeof(struct yuv4mpeg_s));
+	*yuv4mpeg = (yuv4mpeg_t) calloc(1, sizeof(struct yuv4mpeg_s));
 
 	(*yuv4mpeg)->glc = glc;
 	(*yuv4mpeg)->fps = 30;
@@ -198,12 +197,14 @@ int yuv4mpeg_handle_hdr(yuv4mpeg_t yuv4mpeg, glc_video_format_message_t *video_f
 
 	if (yuv4mpeg->interpolate) {
 		if (yuv4mpeg->prev_video_frame_message)
-			yuv4mpeg->prev_video_frame_message = (char *) realloc(yuv4mpeg->prev_video_frame_message, yuv4mpeg->size);
+			yuv4mpeg->prev_video_frame_message = (char *)
+			realloc(yuv4mpeg->prev_video_frame_message, yuv4mpeg->size);
 		else
 			yuv4mpeg->prev_video_frame_message = (char *) malloc(yuv4mpeg->size);
 
 		/* Set Y' 0 */
-		memset(yuv4mpeg->prev_video_frame_message, 0, video_format->width * video_format->height);
+		memset(yuv4mpeg->prev_video_frame_message, 0,
+			video_format->width * video_format->height);
 		/* Set CbCr 128 */
 		memset(&yuv4mpeg->prev_video_frame_message[video_format->width * video_format->height],
 		       128, (video_format->width * video_format->height) / 2);

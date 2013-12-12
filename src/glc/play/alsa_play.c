@@ -75,8 +75,7 @@ snd_pcm_format_t glc_fmt_to_pcm_fmt(glc_audio_format_t format)
 
 int alsa_play_init(alsa_play_t *alsa_play, glc_t *glc)
 {
-	*alsa_play = (alsa_play_t) malloc(sizeof(struct alsa_play_s));
-	memset(*alsa_play, 0, sizeof(struct alsa_play_s));
+	*alsa_play = (alsa_play_t) calloc(1, sizeof(struct alsa_play_s));
 
 	(*alsa_play)->glc = glc;
 	(*alsa_play)->device = "default";

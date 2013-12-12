@@ -49,8 +49,7 @@ void *copy_thread(void *argptr);
 
 int copy_init(copy_t *copy, glc_t *glc)
 {
-	*copy = (copy_t) malloc(sizeof(struct copy_s));
-	memset(*copy, 0, sizeof(struct copy_s));
+	*copy = (copy_t) calloc(1, sizeof(struct copy_s));
 
 	(*copy)->glc = glc;
 
@@ -75,8 +74,7 @@ int copy_destroy(copy_t copy)
 
 int copy_add(copy_t copy, ps_buffer_t *target, glc_message_type_t type)
 {
-	struct copy_target_s *newtarget = malloc(sizeof(struct copy_target_s));
-	memset(newtarget, 0, sizeof(struct copy_target_s));
+	struct copy_target_s *newtarget = calloc(1, sizeof(struct copy_target_s));
 
 	newtarget->buffer = target;
 	newtarget->type = type;

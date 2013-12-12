@@ -82,8 +82,7 @@ int wav_write_audio(wav_t wav, glc_audio_data_header_t *audio_msg, char *data);
 
 int wav_init(wav_t *wav, glc_t *glc)
 {
-	*wav = (wav_t) malloc(sizeof(struct wav_s));
-	memset(*wav, 0, sizeof(struct wav_s));
+	*wav = (wav_t) calloc(1, sizeof(struct wav_s));
 
 	(*wav)->glc = glc;
 
@@ -93,8 +92,7 @@ int wav_init(wav_t *wav, glc_t *glc)
 	(*wav)->interpolate = 1;
 
 	(*wav)->silence_size = 1024;
-	(*wav)->silence = (char *) malloc((*wav)->silence_size);
-	memset((*wav)->silence, 0, (*wav)->silence_size);
+	(*wav)->silence = (char *) calloc(1, (*wav)->silence_size);
 
 	(*wav)->thread.flags = GLC_THREAD_READ;
 	(*wav)->thread.ptr = *wav;
