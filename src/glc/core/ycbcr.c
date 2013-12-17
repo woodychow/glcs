@@ -26,6 +26,7 @@
 #include <glc/common/util.h>
 
 #include "ycbcr.h"
+#include "optimization.h"
 
 /*
 http://en.wikipedia.org/wiki/YCbCr:
@@ -89,20 +90,20 @@ struct ycbcr_s {
 	struct ycbcr_video_stream_s *video;
 };
 
-int ycbcr_read_callback(glc_thread_state_t *state);
-int ycbcr_write_callback(glc_thread_state_t *state);
-void ycbcr_finish_callback(void *ptr, int err);
+static int ycbcr_read_callback(glc_thread_state_t *state);
+static int ycbcr_write_callback(glc_thread_state_t *state);
+static void ycbcr_finish_callback(void *ptr, int err);
 
-int ycbcr_video_format_message(ycbcr_t ycbcr, glc_video_format_message_t *video_format);
-void ycbcr_get_video_stream(ycbcr_t ycbcr, glc_stream_id_t id, struct ycbcr_video_stream_s **video);
+static int ycbcr_video_format_message(ycbcr_t ycbcr, glc_video_format_message_t *video_format);
+static void ycbcr_get_video_stream(ycbcr_t ycbcr, glc_stream_id_t id, struct ycbcr_video_stream_s **video);
 
-int ycbcr_generate_map(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video);
+static int ycbcr_generate_map(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video);
 
-void ycbcr_bgr_to_jpeg420(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video,
+static void ycbcr_bgr_to_jpeg420(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video,
 			  unsigned char *from, unsigned char *to);
-void ycbcr_bgr_to_jpeg420_half(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video,
+static void ycbcr_bgr_to_jpeg420_half(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video,
 			       unsigned char *from, unsigned char *to);
-void ycbcr_bgr_to_jpeg420_scale(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video,
+static void ycbcr_bgr_to_jpeg420_scale(ycbcr_t ycbcr, struct ycbcr_video_stream_s *video,
 				unsigned char *from, unsigned char *to);
 
 int ycbcr_init(ycbcr_t *ycbcr, glc_t *glc)
@@ -130,7 +131,7 @@ int ycbcr_destroy(ycbcr_t ycbcr)
 
 int ycbcr_set_scale(ycbcr_t ycbcr, double scale)
 {
-	if (scale <= 0)
+	if (unlikely(scale <= 0))
 		return EINVAL;
 
 	ycbcr->scale = scale;
@@ -141,10 +142,10 @@ int ycbcr_process_start(ycbcr_t ycbcr, ps_buffer_t *from, ps_buffer_t *to)
 {
 	int ret;
 
-	if (ycbcr->running)
+	if (unlikely(ycbcr->running))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(ycbcr->glc, &ycbcr->thread, from, to)))
+	if (unlikely((ret = glc_thread_create(ycbcr->glc, &ycbcr->thread, from, to))))
 		return ret;
 	ycbcr->running = 1;
 
@@ -155,7 +156,7 @@ int ycbcr_process_wait(ycbcr_t ycbcr)
 {
 	/* finish callback takes care of old video data */
 
-	if (!ycbcr->running)
+	if (unlikely(!ycbcr->running))
 		return EAGAIN;
 
 	glc_thread_wait(&ycbcr->thread);
@@ -169,17 +170,15 @@ void ycbcr_finish_callback(void *ptr, int err)
 	ycbcr_t ycbcr = ptr;
 	struct ycbcr_video_stream_s *del;
 
-	if (err)
+	if (unlikely(err))
 		glc_log(ycbcr->glc, GLC_ERROR, "ycbcr", "%s (%d)", strerror(err), err);
 
 	while (ycbcr->video != NULL) {
 		del = ycbcr->video;
 		ycbcr->video = ycbcr->video->next;
 
-		if (del->pos)
-			free(del->pos);
-		if (del->factor)
-			free(del->factor);
+		free(del->pos);
+		free(del->factor);
 
 		pthread_rwlock_destroy(&del->update);
 		free(del);

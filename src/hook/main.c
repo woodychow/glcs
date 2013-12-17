@@ -92,7 +92,7 @@ void init_glc()
 	mpriv.stream_file = NULL;
 	mpriv.stream_file_fmt = "%app%-%pid%-%capture%.glc";
 
-	if ((ret = pthread_mutex_lock(&lib.init_lock)))
+	if (unlikely((ret = pthread_mutex_lock(&lib.init_lock))))
 		goto err;
 
 	if (lib.initialized)
@@ -106,14 +106,14 @@ void init_glc()
 	load_environ();
 	glc_util_log_version(&mpriv.glc);
 
-	if ((ret = init_buffers()))
+	if (unlikely((ret = init_buffers())))
 		goto err;
 
-	if ((ret = opengl_init(&mpriv.glc)))
+	if (unlikely((ret = opengl_init(&mpriv.glc))))
 		goto err;
-	if ((ret = alsa_init(&mpriv.glc)))
+	if (unlikely((ret = alsa_init(&mpriv.glc))))
 		goto err;
-	if ((ret = x11_init(&mpriv.glc)))
+	if (unlikely((ret = x11_init(&mpriv.glc))))
 		goto err;
 
 	/* get current time for correct timediff */
@@ -147,7 +147,7 @@ void init_glc()
 		mpriv.sigterm_handler = old_sighandler.sa_handler;
 	}
 
-	if ((ret = pthread_mutex_unlock(&lib.init_lock)))
+	if (unlikely((ret = pthread_mutex_unlock(&lib.init_lock))))
 		goto err;
 
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "glc initialized");
@@ -166,13 +166,13 @@ int init_buffers()
 
 	ps_bufferattr_setsize(&attr, mpriv.uncompressed_size);
 	mpriv.uncompressed = (ps_buffer_t *) malloc(sizeof(ps_buffer_t));
-	if ((ret = ps_buffer_init(mpriv.uncompressed, &attr)))
+	if (unlikely((ret = ps_buffer_init(mpriv.uncompressed, &attr))))
 		return ret;
 
 	if (!(mpriv.flags & MAIN_COMPRESS_NONE)) {
 		ps_bufferattr_setsize(&attr, mpriv.compressed_size);
 		mpriv.compressed = (ps_buffer_t *) malloc(sizeof(ps_buffer_t));
-		if ((ret = ps_buffer_init(mpriv.compressed, &attr)))
+		if (unlikely((ret = ps_buffer_init(mpriv.compressed, &attr))))
 			return ret;
 	}
 
@@ -189,18 +189,18 @@ int open_stream()
 	glc_util_info_create(&mpriv.glc, &stream_info, &info_name, &info_date);
 	mpriv.stream_file = glc_util_format_filename(mpriv.stream_file_fmt, mpriv.capture);
 
-	if ((ret = file_set_sync(mpriv.file, (mpriv.flags & MAIN_SYNC) ? 1 : 0)))
-		return ret;
-	if ((ret = file_open_target(mpriv.file, mpriv.stream_file)))
-		return ret;
-	if ((ret = file_write_info(mpriv.file, stream_info,
-				   info_name, info_date)))
-		return ret;
+	if (unlikely((ret = file_set_sync(mpriv.file, (mpriv.flags & MAIN_SYNC) ? 1 : 0))))
+		goto at_exit;
+	if (unlikely((ret = file_open_target(mpriv.file, mpriv.stream_file))))
+		goto at_exit;
+	ret = file_write_info(mpriv.file, stream_info,
+				   info_name, info_date);
+at_exit:
 	free(stream_info);
 	free(info_name);
 	free(info_date);
 
-	return 0;
+	return ret;
 }
 
 int close_stream()

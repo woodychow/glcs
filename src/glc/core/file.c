@@ -35,6 +35,7 @@
 #include <glc/core/tracker.h>
 
 #include "file.h"
+#include "optimization.h"
 
 #define FILE_READING       0x1
 #define FILE_WRITING       0x2
@@ -54,10 +55,12 @@ struct file_s {
 	tracker_t state_tracker;
 };
 
-void file_finish_callback(void *ptr, int err);
-int file_read_callback(glc_thread_state_t *state);
-int file_write_message(file_t file, glc_message_header_t *header, void *message, size_t message_size);
-int file_write_state_callback(glc_message_header_t *header, void *message, size_t message_size, void *arg);
+static void file_finish_callback(void *ptr, int err);
+static int file_read_callback(glc_thread_state_t *state);
+static int file_write_message(file_t file, glc_message_header_t *header,
+			      void *message, size_t message_size);
+static int file_write_state_callback(glc_message_header_t *header, void *message,
+				     size_t message_size, void *arg);
 
 int file_init(file_t *file, glc_t *glc)
 {
@@ -100,7 +103,7 @@ int file_set_callback(file_t file, callback_request_func_t callback)
 int file_open_target(file_t file, const char *filename)
 {
 	int fd, ret = 0;
-	if (file->fd >= 0)
+	if (unlikely(file->fd >= 0))
 		return EBUSY;
 
 	glc_log(file->glc, GLC_INFORMATION, "file",
@@ -110,13 +113,13 @@ int file_open_target(file_t file, const char *filename)
 
 	fd = open(filename, O_CREAT | O_WRONLY | (file->sync ? O_SYNC : 0), 0644);
 
-	if (fd == -1) {
+	if (unlikely(fd == -1)) {
 		glc_log(file->glc, GLC_ERROR, "file", "can't open %s: %s (%d)",
 			 filename, strerror(errno), errno);
 		return errno;
 	}
 
-	if ((ret = file_set_target(file, fd)))
+	if (unlikely((ret = file_set_target(file, fd))))
 		close(fd);
 
 	return ret;
@@ -124,10 +127,10 @@ int file_open_target(file_t file, const char *filename)
 
 int file_set_target(file_t file, int fd)
 {
-	if (file->fd >= 0)
+	if (unlikely(file->fd >= 0))
 		return EBUSY;
 
-	if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
+	if (unlikely(flock(fd, LOCK_EX | LOCK_NB) == -1)) {
 		glc_log(file->glc, GLC_ERROR, "file",
 			 "can't lock file: %s (%d)", strerror(errno), errno);
 		return errno;
@@ -144,17 +147,17 @@ int file_set_target(file_t file, int fd)
 
 int file_close_target(file_t file)
 {
-	if ((file->fd < 0) | (file->flags & FILE_RUNNING) |
-	    (!(file->flags & FILE_WRITING)))
+	if (unlikely((file->fd < 0) || (file->flags & FILE_RUNNING) ||
+	    (!(file->flags & FILE_WRITING))))
 		return EAGAIN;
 
 	/* try to remove lock */
-	if (flock(file->fd, LOCK_UN) == -1)
+	if (unlikely(flock(file->fd, LOCK_UN) == -1))
 		glc_log(file->glc, GLC_WARNING,
 			 "file", "can't unlock file: %s (%d)",
 			 strerror(errno), errno);
 
-	if (close(file->fd))
+	if (unlikely(close(file->fd)))
 		glc_log(file->glc, GLC_ERROR, "file",
 			 "can't close file: %s (%d)",
 			 strerror(errno), errno);
@@ -168,15 +171,18 @@ int file_close_target(file_t file)
 int file_write_info(file_t file, glc_stream_info_t *info,
 		    const char *info_name, const char *info_date)
 {
-	if ((file->fd < 0) | (file->flags & FILE_RUNNING) |
-	    (!(file->flags & FILE_WRITING)))
+	if (unlikely((file->fd < 0) || (file->flags & FILE_RUNNING) ||
+	    (!(file->flags & FILE_WRITING))))
 		return EAGAIN;
 
-	if (write(file->fd, info, sizeof(glc_stream_info_t)) != sizeof(glc_stream_info_t))
+	if (unlikely(write(file->fd, info,
+		sizeof(glc_stream_info_t)) != sizeof(glc_stream_info_t)))
 		goto err;
-	if (write(file->fd, info_name, info->name_size) != info->name_size)
+	if (unlikely(write(file->fd, info_name,
+		info->name_size) != info->name_size))
 		goto err;
-	if (write(file->fd, info_date, info->date_size) != info->date_size)
+	if (unlikely(write(file->fd, info_date,
+		info->date_size) != info->date_size))
 		goto err;
 
 	file->flags |= FILE_INFO_WRITTEN;
@@ -188,17 +194,18 @@ err:
 	return errno;
 }
 
-int file_write_message(file_t file, glc_message_header_t *header, void *message, size_t message_size)
+int file_write_message(file_t file, glc_message_header_t *header, void *message,
+		       size_t message_size)
 {
 	glc_size_t glc_size = (glc_size_t) message_size;
 
-	if (write(file->fd, &glc_size, sizeof(glc_size_t)) != sizeof(glc_size_t))
+	if (unlikely(write(file->fd, &glc_size, sizeof(glc_size_t)) != sizeof(glc_size_t)))
 		goto err;
-	if (write(file->fd, header, sizeof(glc_message_header_t))
-		!= sizeof(glc_message_header_t))
+	if (unlikely(write(file->fd, header, sizeof(glc_message_header_t))
+		!= sizeof(glc_message_header_t)))
 		goto err;
-	if (message_size > 0) {
-		if (write(file->fd, message, message_size) != message_size)
+	if (likely(message_size > 0)) {
+		if (unlikely(write(file->fd, message, message_size) != message_size))
 			goto err;
 	}
 
@@ -213,13 +220,13 @@ int file_write_eof(file_t file)
 	glc_message_header_t hdr;
 	hdr.type = GLC_MESSAGE_CLOSE;
 
-	if ((file->fd < 0) | (file->flags & FILE_RUNNING) |
-	    (!(file->flags & FILE_WRITING))) {
+	if (unlikely((file->fd < 0) || (file->flags & FILE_RUNNING) ||
+	    (!(file->flags & FILE_WRITING)))) {
 	    ret = EAGAIN;
 	    goto err;
 	}
 
-	if ((ret = file_write_message(file, &hdr, NULL, 0)))
+	if (unlikely((ret = file_write_message(file, &hdr, NULL, 0))))
 		goto err;
 
 	return 0;
@@ -239,13 +246,14 @@ int file_write_state_callback(glc_message_header_t *header, void *message, size_
 int file_write_state(file_t file)
 {
 	int ret;
-	if ((file->fd < 0) | (file->flags & FILE_RUNNING) |
-	    (!(file->flags & FILE_WRITING))) {
+	if (unlikely((file->fd < 0) || (file->flags & FILE_RUNNING) ||
+	    (!(file->flags & FILE_WRITING)))) {
 	    ret = EAGAIN;
 	    goto err;
 	}
 
-	if ((ret = tracker_iterate_state(file->state_tracker, &file_write_state_callback, file)))
+	if (unlikely((ret = tracker_iterate_state(file->state_tracker,
+						  &file_write_state_callback, file))))
 		goto err;
 
 	return 0;
@@ -259,12 +267,12 @@ err:
 int file_write_process_start(file_t file, ps_buffer_t *from)
 {
 	int ret;
-	if ((file->fd < 0) | (file->flags & FILE_RUNNING) |
-	    (!(file->flags & FILE_WRITING)) |
-	    (!(file->flags & FILE_INFO_WRITTEN)))
+	if (unlikely((file->fd < 0) || (file->flags & FILE_RUNNING) ||
+	    (!(file->flags & FILE_WRITING)) ||
+	    (!(file->flags & FILE_INFO_WRITTEN))))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(file->glc, &file->thread, from, NULL)))
+	if (unlikely((ret = glc_thread_create(file->glc, &file->thread, from, NULL))))
 		return ret;
 	/** \todo cancel buffer if this fails? */
 	file->flags |= FILE_RUNNING;
@@ -274,9 +282,9 @@ int file_write_process_start(file_t file, ps_buffer_t *from)
 
 int file_write_process_wait(file_t file)
 {
-	if ((file->fd < 0) | (!(file->flags & FILE_RUNNING)) |
-	    (!(file->flags & FILE_WRITING)) |
-	    (!(file->flags & FILE_INFO_WRITTEN)))
+	if (unlikely((file->fd < 0) || (!(file->flags & FILE_RUNNING)) ||
+	    (!(file->flags & FILE_WRITING)) ||
+	    (!(file->flags & FILE_INFO_WRITTEN))))
 		return EAGAIN;
 
 	glc_thread_wait(&file->thread);
@@ -289,7 +297,7 @@ void file_finish_callback(void *ptr, int err)
 {
 	file_t file = (file_t) ptr;
 
-	if (err)
+	if (unlikely(err))
 		glc_log(file->glc, GLC_ERROR, "file", "%s (%d)", strerror(err), err);
 }
 
@@ -314,18 +322,21 @@ int file_read_callback(glc_thread_state_t *state)
 		}
 	} else if (state->header.type == GLC_MESSAGE_CONTAINER) {
 		container = (glc_container_message_header_t *) state->read_data;
-		if (write(file->fd, state->read_data, sizeof(glc_container_message_header_t) + container->size)
-		    != (sizeof(glc_container_message_header_t) + container->size))
+		if (unlikely(write(file->fd, state->read_data,
+			  sizeof(glc_container_message_header_t) + container->size)
+		    != (sizeof(glc_container_message_header_t) + container->size)))
 			goto err;
 	} else {
 		/* emulate container message */
 		glc_size = state->read_size;
-		if (write(file->fd, &glc_size, sizeof(glc_size_t)) != sizeof(glc_size_t))
+		if (unlikely(write(file->fd, &glc_size,
+				   sizeof(glc_size_t)) != sizeof(glc_size_t)))
 			goto err;
-		if (write(file->fd, &state->header, sizeof(glc_message_header_t))
-		    != sizeof(glc_message_header_t))
+		if (unlikely(write(file->fd, &state->header, sizeof(glc_message_header_t))
+		    != sizeof(glc_message_header_t)))
 			goto err;
-		if (write(file->fd, state->read_data, state->read_size) != state->read_size)
+		if (unlikely(write(file->fd, state->read_data,
+				   state->read_size) != state->read_size))
 			goto err;
 	}
 
@@ -339,7 +350,7 @@ err:
 int file_open_source(file_t file, const char *filename)
 {
 	int fd, ret = 0;
-	if (file->fd >= 0)
+	if (unlikely(file->fd >= 0))
 		return EBUSY;
 
 	glc_log(file->glc, GLC_INFORMATION, "file",
@@ -347,13 +358,13 @@ int file_open_source(file_t file, const char *filename)
 
 	fd = open(filename, file->sync ? O_SYNC : 0);
 
-	if (fd == -1) {
+	if (unlikely(fd == -1)) {
 		glc_log(file->glc, GLC_ERROR, "file", "can't open %s: %s (%d)",
 			 filename, strerror(errno), errno);
 		return errno;
 	}
 
-	if ((ret = file_set_source(file, fd)))
+	if (unlikely((ret = file_set_source(file, fd))))
 		close(fd);
 
 	return ret;
@@ -361,7 +372,7 @@ int file_open_source(file_t file, const char *filename)
 
 int file_set_source(file_t file, int fd)
 {
-	if (file->fd >= 0)
+	if (unlikely(file->fd >= 0))
 		return EBUSY;
 
 	/* seek to beginning */
@@ -374,10 +385,10 @@ int file_set_source(file_t file, int fd)
 
 int file_close_source(file_t file)
 {
-	if ((file->fd < 0) | (!(file->flags & FILE_READING)))
+	if (unlikely((file->fd < 0) || (!(file->flags & FILE_READING))))
 		return EAGAIN;
 
-	if (close(file->fd))
+	if (unlikely(close(file->fd)))
 		glc_log(file->glc, GLC_ERROR, "file",
 			 "can't close file: %s (%d)",
 			 strerror(errno), errno);
@@ -391,7 +402,7 @@ int file_close_source(file_t file)
 int file_test_stream_version(u_int32_t version)
 {
 	/* current version is always supported */
-	if (version == GLC_STREAM_VERSION) {
+	if (likely(version == GLC_STREAM_VERSION)) {
 		return 0;
 	} else if (version == 0x03) {
 		/*
@@ -407,17 +418,20 @@ int file_test_stream_version(u_int32_t version)
 int file_read_info(file_t file, glc_stream_info_t *info,
 		   char **info_name, char **info_date)
 {
-	if ((file->fd < 0) | (!(file->flags & FILE_READING)))
+	*info_name = NULL;
+	*info_date = NULL;
+	if (unlikely((file->fd < 0) || (!(file->flags & FILE_READING))))
 		return EAGAIN;
 
-	if (read(file->fd, info, sizeof(glc_stream_info_t)) != sizeof(glc_stream_info_t)) {
+	if (unlikely(read(file->fd, info, sizeof(glc_stream_info_t)) !=
+			 sizeof(glc_stream_info_t))) {
 		glc_log(file->glc, GLC_ERROR, "file",
 			 "can't read stream info header");
 		return errno;
 	}
 	file->flags |= FILE_INFO_READ;
 
-	if (info->signature != GLC_SIGNATURE) {
+	if (unlikely(info->signature != GLC_SIGNATURE)) {
 		glc_log(file->glc, GLC_ERROR, "file",
 			 "signature 0x%08x does not match 0x%08x",
 			 info->signature, GLC_SIGNATURE);
@@ -434,13 +448,13 @@ int file_read_info(file_t file, glc_stream_info_t *info,
 
 	if (info->name_size > 0) {
 		*info_name = (char *) malloc(info->name_size);
-		if (read(file->fd, *info_name, info->name_size) != info->name_size)
+		if (unlikely(read(file->fd, *info_name, info->name_size) != info->name_size))
 			return errno;
 	}
 
 	if (info->date_size > 0) {
 		*info_date = (char *) malloc(info->date_size);
-		if (read(file->fd, *info_date, info->date_size) != info->date_size)
+		if (unlikely(read(file->fd, *info_date, info->date_size) != info->date_size))
 			return errno;
 	}
 
@@ -457,16 +471,16 @@ int file_read(file_t file, ps_buffer_t *to)
 	char *dma;
 	glc_size_t glc_ps;
 
-	if ((file->fd < 0) | (!(file->flags & FILE_READING)))
+	if (unlikely((file->fd < 0) || (!(file->flags & FILE_READING))))
 		return EAGAIN;
 
-	if (!(file->flags & FILE_INFO_READ)) {
+	if (unlikely(!(file->flags & FILE_INFO_READ))) {
 		glc_log(file->glc, GLC_ERROR, "file",
 			 "stream info header not read");
 		return EAGAIN;
 	}
 
-	if (!(file->flags & FILE_INFO_VALID)) {
+	if (unlikely(!(file->flags & FILE_INFO_VALID))) {
 		glc_log(file->glc, GLC_ERROR, "file",
 			 "stream info header not valid");
 		file->flags &= ~FILE_INFO_READ;
@@ -476,33 +490,39 @@ int file_read(file_t file, ps_buffer_t *to)
 	ps_packet_init(&packet, to);
 
 	do {
-		if (file->stream_version == 0x03) {
+		if (unlikely(file->stream_version == 0x03)) {
 			/* old order */
-			if (read(file->fd, &header, sizeof(glc_message_header_t)) != sizeof(glc_message_header_t))
+			if (unlikely(read(file->fd, &header,
+				sizeof(glc_message_header_t)) != sizeof(glc_message_header_t)))
 				goto send_eof;
-			if (read(file->fd, &glc_ps, sizeof(glc_size_t)) != sizeof(glc_size_t))
+			if (unlikely(read(file->fd, &glc_ps, sizeof(glc_size_t)) !=
+				sizeof(glc_size_t)))
 				goto send_eof;
 		} else {
 			/* same header format as in container messages */
-			if (read(file->fd, &glc_ps, sizeof(glc_size_t)) != sizeof(glc_size_t))
+			if (unlikely(read(file->fd, &glc_ps, sizeof(glc_size_t)) !=
+				sizeof(glc_size_t)))
 				goto send_eof;
-			if (read(file->fd, &header, sizeof(glc_message_header_t)) != sizeof(glc_message_header_t))
+			if (unlikely(read(file->fd, &header,
+				sizeof(glc_message_header_t)) != sizeof(glc_message_header_t)))
 				goto send_eof;
 		}
 
 		packet_size = glc_ps;
 
-		if ((ret = ps_packet_open(&packet, PS_PACKET_WRITE)))
+		if (unlikely((ret = ps_packet_open(&packet, PS_PACKET_WRITE))))
 			goto err;
-		if ((ret = ps_packet_write(&packet, &header, sizeof(glc_message_header_t))))
+		if (unlikely((ret = ps_packet_write(&packet, &header,
+						sizeof(glc_message_header_t)))))
 			goto err;
-		if ((ret = ps_packet_dma(&packet, (void *) &dma, packet_size, PS_ACCEPT_FAKE_DMA)))
+		if (unlikely((ret = ps_packet_dma(&packet, (void *) &dma,
+					packet_size, PS_ACCEPT_FAKE_DMA))))
 			goto err;
 
-		if (read(file->fd, dma, packet_size) != packet_size)
+		if (unlikely(read(file->fd, dma, packet_size) != packet_size))
 			goto read_fail;
 
-		if ((ret = ps_packet_close(&packet)))
+		if (unlikely((ret = ps_packet_close(&packet))))
 			goto err;
 	} while ((header.type != GLC_MESSAGE_CLOSE) &&
 		 (!glc_state_test(file->glc, GLC_STATE_CANCEL)));

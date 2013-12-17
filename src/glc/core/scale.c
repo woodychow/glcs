@@ -26,6 +26,7 @@
 #include <glc/common/util.h>
 
 #include "scale.h"
+#include "optimization.h"
 
 #define SCALE_RUNNING      0x1
 #define SCALE_SIZE         0x2
@@ -68,26 +69,26 @@ struct scale_s {
 	unsigned int width, height;
 };
 
-int scale_read_callback(glc_thread_state_t *state);
-int scale_write_callback(glc_thread_state_t *state);
-void scale_finish_callback(void *ptr, int err);
+static int scale_read_callback(glc_thread_state_t *state);
+static int scale_write_callback(glc_thread_state_t *state);
+static void scale_finish_callback(void *ptr, int err);
 
-int scale_video_format_message(scale_t scale, glc_video_format_message_t *format_message, glc_thread_state_t *state);
-int scale_get_video_stream(scale_t scale, glc_stream_id_t id, struct scale_video_stream_s **video);
+static int scale_video_format_message(scale_t scale, glc_video_format_message_t *format_message, glc_thread_state_t *state);
+static int scale_get_video_stream(scale_t scale, glc_stream_id_t id, struct scale_video_stream_s **video);
 
-int scale_generate_rgb_map(scale_t scale, struct scale_video_stream_s *video);
-int scale_generate_ycbcr_map(scale_t scale, struct scale_video_stream_s *video);
+static int scale_generate_rgb_map(scale_t scale, struct scale_video_stream_s *video);
+static int scale_generate_ycbcr_map(scale_t scale, struct scale_video_stream_s *video);
 
-void scale_rgb_convert(scale_t scale, struct scale_video_stream_s *video,
+static void scale_rgb_convert(scale_t scale, struct scale_video_stream_s *video,
 		       unsigned char *from, unsigned char *to);
-void scale_rgb_half(scale_t scale, struct scale_video_stream_s *video,
+static void scale_rgb_half(scale_t scale, struct scale_video_stream_s *video,
 		    unsigned char *from, unsigned char *to);
-void scale_rgb_scale(scale_t scale, struct scale_video_stream_s *video,
+static void scale_rgb_scale(scale_t scale, struct scale_video_stream_s *video,
 		     unsigned char *from, unsigned char *to);
 
-void scale_ycbcr_half(scale_t scale, struct scale_video_stream_s *video,
+static void scale_ycbcr_half(scale_t scale, struct scale_video_stream_s *video,
 		      unsigned char *from, unsigned char *to);
-void scale_ycbcr_scale(scale_t scale, struct scale_video_stream_s *video,
+static void scale_ycbcr_scale(scale_t scale, struct scale_video_stream_s *video,
 		       unsigned char *from, unsigned char *to);
 
 int scale_init(scale_t *scale, glc_t *glc)
@@ -115,7 +116,7 @@ int scale_destroy(scale_t scale)
 
 int scale_set_scale(scale_t scale, double factor)
 {
-	if (factor <= 0)
+	if (unlikely(factor <= 0))
 		return EINVAL;
 
 	scale->scale = factor;
@@ -125,7 +126,7 @@ int scale_set_scale(scale_t scale, double factor)
 
 int scale_set_size(scale_t scale, unsigned int width, unsigned int height)
 {
-	if ((!width) | (!height))
+	if (unlikely((!width) || (!height)))
 		return EINVAL;
 
 	scale->width = width;
@@ -137,10 +138,10 @@ int scale_set_size(scale_t scale, unsigned int width, unsigned int height)
 int scale_process_start(scale_t scale, ps_buffer_t *from, ps_buffer_t *to)
 {
 	int ret;
-	if (scale->flags & SCALE_RUNNING)
+	if (unlikely(scale->flags & SCALE_RUNNING))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(scale->glc, &scale->thread, from, to)))
+	if (unlikely((ret = glc_thread_create(scale->glc, &scale->thread, from, to))))
 		return ret;
 	scale->flags |= SCALE_RUNNING;
 
@@ -149,7 +150,7 @@ int scale_process_start(scale_t scale, ps_buffer_t *from, ps_buffer_t *to)
 
 int scale_process_wait(scale_t scale)
 {
-	if (!(scale->flags & SCALE_RUNNING))
+	if (unlikely(!(scale->flags & SCALE_RUNNING)))
 		return EAGAIN;
 
 	/* finish callback frees video stuff */
@@ -164,17 +165,15 @@ void scale_finish_callback(void *ptr, int err)
 	scale_t scale = ptr;
 	struct scale_video_stream_s *del;
 
-	if (err)
+	if (unlikely(err))
 		glc_log(scale->glc, GLC_ERROR, "scale", "%s (%d)", strerror(err), err);
 
 	while (scale->video != NULL) {
 		del = scale->video;
 		scale->video = scale->video->next;
 
-		if (del->pos)
-			free(del->pos);
-		if (del->factor)
-			free(del->factor);
+		free(del->pos);
+		free(del->factor);
 
 		pthread_rwlock_destroy(&del->update);
 		free(del);

@@ -40,7 +40,7 @@ struct glc_util_s {
  * \param path_size size of name string, including 0
  * \return 0 on success otherwise an error code
  */
-int glc_util_app_name(glc_t *glc, char **path, u_int32_t *path_size);
+static int glc_util_app_name(glc_t *glc, char **path, u_int32_t *path_size);
 
 /**
  * \brief acquire current date as UTC string
@@ -49,7 +49,7 @@ int glc_util_app_name(glc_t *glc, char **path, u_int32_t *path_size);
  * \param date_size size of date string, including 0
  * \return 0 on success otherwise an error code
  */
-int glc_util_utc_date(glc_t *glc, char **date, u_int32_t *date_size);
+static int glc_util_utc_date(glc_t *glc, char **date, u_int32_t *date_size);
 
 int glc_util_init(glc_t *glc)
 {

@@ -153,13 +153,15 @@ int tracker_iterate_state(tracker_t tracker, tracker_callback_t callback,
 	while (video != NULL) {
 		if (video->flags & TRACKER_VIDEO_FORMAT) {
 			header.type = GLC_MESSAGE_VIDEO_FORMAT;
-			if ((ret = callback(&header, &video->format, sizeof(glc_video_format_message_t), arg)))
+			if ((ret = callback(&header, &video->format,
+					    sizeof(glc_video_format_message_t), arg)))
 				goto finish;
 		}
 
 		if (video->flags & TRACKER_VIDEO_COLOR) {
 			header.type = GLC_MESSAGE_COLOR;
-			if ((ret = callback(&header, &video->color, sizeof(glc_color_message_t), arg)))
+			if ((ret = callback(&header, &video->color,
+					    sizeof(glc_color_message_t), arg)))
 				goto finish;
 		}
 
@@ -169,7 +171,8 @@ int tracker_iterate_state(tracker_t tracker, tracker_callback_t callback,
 	while (audio != NULL) {
 		if (audio->flags & TRACKER_AUDIO_FORMAT) {
 			header.type = GLC_MESSAGE_AUDIO_FORMAT;
-			if ((ret = callback(&header, &audio->format, sizeof(glc_audio_format_message_t), arg)))
+			if ((ret = callback(&header, &audio->format,
+					    sizeof(glc_audio_format_message_t), arg)))
 				goto finish;
 		}
 
@@ -179,3 +182,4 @@ int tracker_iterate_state(tracker_t tracker, tracker_callback_t callback,
 finish:
 	return ret;
 }
+

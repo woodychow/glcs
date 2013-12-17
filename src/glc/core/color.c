@@ -27,6 +27,7 @@
 #include <glc/common/util.h>
 
 #include "color.h"
+#include "optimization.h"
 
 #define LOOKUP_BITS 8
 #define YCBCR_LOOKUP_POS(Y, Cb, Cr) \
@@ -70,28 +71,28 @@ struct color_s {
 	float red_gamma, green_gamma, blue_gamma;
 };
 
-int color_read_callback(glc_thread_state_t *state);
-int color_write_callback(glc_thread_state_t *state);
-void color_finish_callback(void *ptr, int err);
+static int color_read_callback(glc_thread_state_t *state);
+static int color_write_callback(glc_thread_state_t *state);
+static void color_finish_callback(void *ptr, int err);
 
-void color_get_video_stream(color_t color, glc_stream_id_t id,
+static void color_get_video_stream(color_t color, glc_stream_id_t id,
 		   struct color_video_stream_s **video);
 
-int color_video_format_msg(color_t color, glc_video_format_message_t *msg);
-int color_color_msg(color_t color, glc_color_message_t *msg);
+static int color_video_format_msg(color_t color, glc_video_format_message_t *msg);
+static int color_color_msg(color_t color, glc_color_message_t *msg);
 
-int color_generate_ycbcr_lookup_table(color_t color,
+static int color_generate_ycbcr_lookup_table(color_t color,
 				      struct color_video_stream_s *video);
-int color_generate_rgb_lookup_table(color_t color,
+static int color_generate_rgb_lookup_table(color_t color,
 				    struct color_video_stream_s *video);
 
-void color_ycbcr(color_t color, struct color_video_stream_s *video,
+static void color_ycbcr(color_t color, struct color_video_stream_s *video,
 		 unsigned char *from, unsigned char *to);
-void color_bgr(color_t color, struct color_video_stream_s *video,
+static void color_bgr(color_t color, struct color_video_stream_s *video,
 	       unsigned char *from, unsigned char *to);
 
 /* unfortunately over- and underflows will occur */
-__inline__ unsigned char color_clamp(int val)
+__inline__ static unsigned char color_clamp(int val)
 {
 	if (val > 255)
 		return 255;
@@ -125,10 +126,10 @@ int color_destroy(color_t color)
 int color_process_start(color_t color, ps_buffer_t *from, ps_buffer_t *to)
 {
 	int ret;
-	if (color->flags & COLOR_RUNNING)
+	if (unlikely(color->flags & COLOR_RUNNING))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(color->glc, &color->thread, from, to)))
+	if (unlikely((ret = glc_thread_create(color->glc, &color->thread, from, to))))
 		return ret;
 	color->flags |= COLOR_RUNNING;
 
@@ -137,7 +138,7 @@ int color_process_start(color_t color, ps_buffer_t *from, ps_buffer_t *to)
 
 int color_process_wait(color_t color)
 {
-	if (!(color->flags & COLOR_RUNNING))
+	if (unlikely(!(color->flags & COLOR_RUNNING)))
 		return EAGAIN;
 
 	glc_thread_wait(&color->thread);
@@ -170,7 +171,7 @@ void color_finish_callback(void *ptr, int err)
 	color_t color = (color_t) ptr;
 	struct color_video_stream_s *del;
 
-	if (err)
+	if (unlikely(err))
 		glc_log(color->glc, GLC_ERROR, "color", "%s (%d)", strerror(err), err);
 
 	while (color->video != NULL) {
@@ -178,8 +179,7 @@ void color_finish_callback(void *ptr, int err)
 		color->video = color->video->next;
 
 		pthread_rwlock_destroy(&del->update);
-		if (del->lookup_table)
-			free(del->lookup_table);
+		free(del->lookup_table);
 		free(del);
 	}
 }
@@ -267,7 +267,7 @@ int color_video_format_msg(color_t color, glc_video_format_message_t *msg)
 	video->w = msg->width;
 	video->h = msg->height;
 
-	if ((video->format == GLC_VIDEO_BGR) |
+	if ((video->format == GLC_VIDEO_BGR) ||
 	    (video->format == GLC_VIDEO_BGRA)) {
 		if (video->format == GLC_VIDEO_BGRA)
 			video->bpp = 4;
@@ -300,27 +300,30 @@ int color_video_format_msg(color_t color, glc_video_format_message_t *msg)
 		    (video->red_gamma == 1) &&
 		    (video->green_gamma == 1) &&
 		    (video->blue_gamma == 1)) {
-			glc_log(color->glc, GLC_INFORMATION, "color", "skipping color correction");
+			glc_log(color->glc, GLC_INFORMATION, "color",
+				"skipping color correction");
 			video->proc = NULL;
 		} else if (video->format == GLC_VIDEO_YCBCR_420JPEG) {
 			color_generate_ycbcr_lookup_table(color, video);
 			video->proc = &color_ycbcr;
-		} else if ((video->format == GLC_VIDEO_BGR) | (video->format == GLC_VIDEO_BGRA)) {
+		} else if ((video->format == GLC_VIDEO_BGR) ||
+			   (video->format == GLC_VIDEO_BGRA)) {
 			color_generate_rgb_lookup_table(color, video);
 			video->proc = &color_bgr;
 		} else {
 			/* set proc NULL -> no conversion done */
-			glc_log(color->glc, GLC_WARNING, "color", "unsupported video %d", msg->id);
+			glc_log(color->glc, GLC_WARNING, "color",
+				"unsupported video %d", msg->id);
 			video->proc = NULL;
 		}
-	} else if (((old_format == GLC_VIDEO_BGR) |
+	} else if (((old_format == GLC_VIDEO_BGR) ||
 		    (old_format == GLC_VIDEO_BGRA)) &&
 		   (msg->format == GLC_VIDEO_YCBCR_420JPEG)) {
 		glc_log(color->glc, GLC_WARNING, "color",
 			 "colorspace switched from RGB to Y'CbCr, recalculating lookup table");
 		color_generate_ycbcr_lookup_table(color, video);
 		video->proc = &color_ycbcr;
-	} else if (((msg->format == GLC_VIDEO_BGR) |
+	} else if (((msg->format == GLC_VIDEO_BGR) ||
 		    (msg->format == GLC_VIDEO_BGRA)) &&
 		   (old_format == GLC_VIDEO_YCBCR_420JPEG)) {
 		glc_log(color->glc, GLC_WARNING, "color",
@@ -364,7 +367,7 @@ int color_color_msg(color_t color, glc_color_message_t *msg)
 	} else if (video->format == GLC_VIDEO_YCBCR_420JPEG) {
 		color_generate_ycbcr_lookup_table(color, video);
 		video->proc = &color_ycbcr;
-	} else if ((video->format == GLC_VIDEO_BGR) |
+	} else if ((video->format == GLC_VIDEO_BGR) ||
 		   (video->format == GLC_VIDEO_BGRA)) {
 		color_generate_rgb_lookup_table(color, video);
 		video->proc = &color_bgr;
@@ -483,11 +486,14 @@ int color_generate_ycbcr_lookup_table(color_t color,
 		for (Cb = 0; Cb < 256; Cb += (1 << (8 - LOOKUP_BITS))) {
 			for (Cr = 0; Cr < 256; Cr += (1 << (8 - LOOKUP_BITS))) {
 				R = color_clamp(CALC(YCbCr_TO_RGB_Rd(Y, Cb, Cr),
-						video->brightness, video->contrast, video->red_gamma));
+						video->brightness, video->contrast,
+						video->red_gamma));
 				G = color_clamp(CALC(YCbCr_TO_RGB_Gd(Y, Cb, Cr),
-						video->brightness, video->contrast, video->green_gamma));
+						video->brightness, video->contrast,
+						video->green_gamma));
 				B = color_clamp(CALC(YCbCr_TO_RGB_Bd(Y, Cb, Cr),
-						video->brightness, video->contrast, video->blue_gamma));
+						video->brightness, video->contrast,
+						video->blue_gamma));
 
 				video->lookup_table[pos + 0] = RGB_TO_YCbCrJPEG_Y(R, G, B);
 				video->lookup_table[pos + 1] = RGB_TO_YCbCrJPEG_Cb(R, G, B);
@@ -516,13 +522,16 @@ int color_generate_rgb_lookup_table(color_t color,
 		)
 
 	for (c = 0; c < 256; c++)
-		video->lookup_table[c + 0] = CALC(c, video->brightness, video->contrast, video->red_gamma);
+		video->lookup_table[c + 0] = CALC(c, video->brightness, video->contrast,
+						  video->red_gamma);
 
 	for (c = 0; c < 256; c++)
-		video->lookup_table[c + 256] = CALC(c, video->brightness, video->contrast, video->green_gamma);
+		video->lookup_table[c + 256] = CALC(c, video->brightness, video->contrast,
+						    video->green_gamma);
 
 	for (c = 0; c < 256; c++)
-		video->lookup_table[c + 256 + 256] = CALC(c, video->brightness, video->contrast, video->blue_gamma);
+		video->lookup_table[c + 256 + 256] = CALC(c, video->brightness, video->contrast,
+							  video->blue_gamma);
 
 #undef CALC
 

@@ -26,6 +26,7 @@
 #include <glc/common/util.h>
 
 #include "rgb.h"
+#include "optimization.h"
 
 /*
 R'd = Y' + (Cr - 128) * (2 - 2 * Kr)
@@ -61,19 +62,19 @@ B'd = Y' + (Cb - 128) * (2 - 2 * Kb)
 #define CLAMP_256(val) \
 	(val) < 0 ? 0 : ((val) > 255 ? 255 : (val))
 
-unsigned char YCbCrJPEG_TO_RGB_Rd(unsigned char Y, unsigned char Cb, unsigned char Cr)
+static unsigned char YCbCrJPEG_TO_RGB_Rd(unsigned char Y, unsigned char Cb, unsigned char Cr)
 {
 	int R = Y + 1.402 * (Cr - 128);
 	return CLAMP_256(R);
 }
 
-unsigned char YCbCrJPEG_TO_RGB_Gd(unsigned char Y, unsigned char Cb, unsigned char Cr)
+static unsigned char YCbCrJPEG_TO_RGB_Gd(unsigned char Y, unsigned char Cb, unsigned char Cr)
 {
 	int G = Y - 0.344136 * (Cb - 128) - 0.714136 * (Cr - 128);
 	return CLAMP_256(G);
 }
 
-unsigned char YCbCrJPEG_TO_RGB_Bd(unsigned char Y, unsigned char Cb, unsigned char Cr)
+static unsigned char YCbCrJPEG_TO_RGB_Bd(unsigned char Y, unsigned char Cb, unsigned char Cr)
 {
 	int B = Y + 1.772 * (Cb - 128);
 	return CLAMP_256(B);
@@ -99,19 +100,19 @@ struct rgb_s {
 	struct rgb_video_stream_s *ctx;
 };
 
-int rgb_read_callback(glc_thread_state_t *state);
-int rgb_write_callback(glc_thread_state_t *state);
-void rgb_finish_callback(void *ptr, int err);
+static int rgb_read_callback(glc_thread_state_t *state);
+static int rgb_write_callback(glc_thread_state_t *state);
+static void rgb_finish_callback(void *ptr, int err);
 
-void rgbget_video_stream(rgb_t rgb, glc_stream_id_t id,
+static void rgbget_video_stream(rgb_t rgb, glc_stream_id_t id,
 		struct rgb_video_stream_s **ctx);
 
-int rgb_video_format_message(rgb_t rgb, glc_video_format_message_t *video_format_message);
-int rgb_convert(rgb_t rgb, struct rgb_video_stream_s *ctx,
+static int rgb_video_format_message(rgb_t rgb, glc_video_format_message_t *video_format_message);
+static int rgb_convert(rgb_t rgb, struct rgb_video_stream_s *ctx,
 		unsigned char *from, unsigned char *to);
 
-int rgb_init_lookup(rgb_t rgb);
-int rgb_convert_lookup(rgb_t rgb, struct rgb_video_stream_s *ctx,
+static int rgb_init_lookup(rgb_t rgb);
+static int rgb_convert_lookup(rgb_t rgb, struct rgb_video_stream_s *ctx,
 		       unsigned char *from, unsigned char *to);
 
 int rgb_init(rgb_t *rgb, glc_t *glc)
@@ -134,8 +135,7 @@ int rgb_init(rgb_t *rgb, glc_t *glc)
 
 int rgb_destroy(rgb_t rgb)
 {
-	if (rgb->lookup_table)
-		free(rgb->lookup_table);
+	free(rgb->lookup_table);
 	free(rgb);
 	return 0;
 }
@@ -143,10 +143,10 @@ int rgb_destroy(rgb_t rgb)
 int rgb_process_start(rgb_t rgb, ps_buffer_t *from, ps_buffer_t *to)
 {
 	int ret;
-	if (rgb->running)
+	if (unlikely(rgb->running))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(rgb->glc, &rgb->thread, from, to)))
+	if (unlikely((ret = glc_thread_create(rgb->glc, &rgb->thread, from, to))))
 		return ret;
 	rgb->running = 1;
 
@@ -155,7 +155,7 @@ int rgb_process_start(rgb_t rgb, ps_buffer_t *from, ps_buffer_t *to)
 
 int rgb_process_wait(rgb_t rgb)
 {
-	if (!rgb->running)
+	if (unlikely(!rgb->running))
 		return EAGAIN;
 
 	glc_thread_wait(&rgb->thread);
@@ -169,7 +169,7 @@ void rgb_finish_callback(void *ptr, int err)
 	rgb_t rgb = (rgb_t) ptr;
 	struct rgb_video_stream_s *del;
 
-	if (err)
+	if (unlikely(err))
 		glc_log(rgb->glc, GLC_ERROR, "rgb", "%s (%d)", strerror(err), err);
 
 	while (rgb->ctx != NULL) {

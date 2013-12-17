@@ -24,6 +24,7 @@
 #include <pthread.h>
 
 #include <glc/common/glc.h>
+#include "optimization.h"
 
 #define LIB_CAPTURING    0x1
 
@@ -39,7 +40,7 @@ typedef struct {
 } glc_lib_t;
 
 #define INIT_GLC \
-	if (!lib.initialized) \
+	if (unlikely(!lib.initialized)) \
 		init_glc();
 
 /**

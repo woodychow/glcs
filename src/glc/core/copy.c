@@ -26,6 +26,7 @@
 #include <glc/common/util.h>
 
 #include "copy.h"
+#include "optimization.h"
 
 struct copy_target_s {
 	ps_buffer_t *buffer;
@@ -93,7 +94,7 @@ int copy_process_start(copy_t copy, ps_buffer_t *from)
 	int ret;
 	pthread_attr_t attr;
 
-	if (copy->running)
+	if (unlikely(copy->running))
 		return EALREADY;
 
 	copy->from = from;
@@ -101,18 +102,16 @@ int copy_process_start(copy_t copy, ps_buffer_t *from)
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-	if ((ret = pthread_create(&copy->copy_thread, &attr, copy_thread, copy)))
-		return ret;
-
-	copy->running = 1;
+	if (likely(!(ret = pthread_create(&copy->copy_thread, &attr, copy_thread, copy))))
+		copy->running = 1;
 
 	pthread_attr_destroy(&attr);
-	return 0;
+	return ret;
 }
 
 int copy_process_wait(copy_t copy)
 {
-	if (!copy->running)
+	if (unlikely(!copy->running))
 		return EAGAIN;
 
 	pthread_join(copy->copy_thread, NULL);
@@ -132,33 +131,37 @@ void *copy_thread(void *argptr)
 
 	ps_packet_t read;
 
-	if ((ret = ps_packet_init(&read, copy->from)))
+	if (unlikely((ret = ps_packet_init(&read, copy->from))))
 		goto err;
 
 	do {
-		if ((ret = ps_packet_open(&read, PS_PACKET_READ)))
+		if (unlikely((ret = ps_packet_open(&read, PS_PACKET_READ))))
 			goto err;
 
-		if ((ret = ps_packet_read(&read, &msg_hdr, sizeof(glc_message_header_t))))
+		if (unlikely((ret = ps_packet_read(&read, &msg_hdr,
+						sizeof(glc_message_header_t)))))
 			goto err;
-		if ((ret = ps_packet_getsize(&read, &data_size)))
+		if (unlikely((ret = ps_packet_getsize(&read, &data_size))))
 			goto err;
 		data_size -= sizeof(glc_message_header_t);
-		if ((ret = ps_packet_dma(&read, &data, data_size, PS_ACCEPT_FAKE_DMA)))
+		if (unlikely((ret = ps_packet_dma(&read, &data, data_size,
+						PS_ACCEPT_FAKE_DMA))))
 			goto err;
 
 		target = copy->copy_target;
 		while (target != NULL) {
-			if ((target->type == 0) |
+			if ((target->type == 0) ||
 			    (target->type == msg_hdr.type)) {
-				if ((ret = ps_packet_open(&target->packet, PS_PACKET_WRITE)))
+				if (unlikely((ret = ps_packet_open(&target->packet,
+								 PS_PACKET_WRITE))))
 					goto err;
-				if ((ret = ps_packet_write(&target->packet, &msg_hdr,
-							   sizeof(glc_message_header_t))))
+				if (unlikely((ret = ps_packet_write(&target->packet, &msg_hdr,
+							sizeof(glc_message_header_t)))))
 					goto err;
-				if ((ret = ps_packet_write(&target->packet, data, data_size)))
+				if (unlikely((ret = ps_packet_write(&target->packet, data,
+							data_size))))
 					goto err;
-				if ((ret = ps_packet_close(&target->packet)))
+				if (unlikely((ret = ps_packet_close(&target->packet))))
 					goto err;
 			}
 			target = target->next;

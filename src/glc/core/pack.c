@@ -25,6 +25,7 @@
 #include <glc/common/util.h>
 
 #include "pack.h"
+#include "optimization.h"
 
 #ifdef __MINILZO
 # include <minilzo.h>
@@ -63,17 +64,17 @@ struct unpack_s {
 	int running;
 };
 
-int pack_thread_create_callback(void *ptr, void **threadptr);
-void pack_thread_finish_callback(void *ptr, void *threadptr, int err);
-int pack_read_callback(glc_thread_state_t *state);
-int pack_quicklz_write_callback(glc_thread_state_t *state);
-int pack_lzo_write_callback(glc_thread_state_t *state);
-int pack_lzjb_write_callback(glc_thread_state_t *state);
-void pack_finish_callback(void *ptr, int err);
+static int pack_thread_create_callback(void *ptr, void **threadptr);
+static void pack_thread_finish_callback(void *ptr, void *threadptr, int err);
+static int pack_read_callback(glc_thread_state_t *state);
+static int pack_quicklz_write_callback(glc_thread_state_t *state);
+static int pack_lzo_write_callback(glc_thread_state_t *state);
+static int pack_lzjb_write_callback(glc_thread_state_t *state);
+static void pack_finish_callback(void *ptr, int err);
 
-int unpack_read_callback(glc_thread_state_t *state);
-int unpack_write_callback(glc_thread_state_t *state);
-void unpack_finish_callback(void *ptr, int err);
+static int unpack_read_callback(glc_thread_state_t *state);
+static int unpack_write_callback(glc_thread_state_t *state);
+static void unpack_finish_callback(void *ptr, int err);
 
 int pack_init(pack_t *pack, glc_t *glc)
 {
@@ -107,7 +108,7 @@ int pack_init(pack_t *pack, glc_t *glc)
 
 int pack_set_compression(pack_t pack, int compression)
 {
-	if (pack->running)
+	if (unlikely(pack->running))
 		return EALREADY;
 
 	if (compression == PACK_QUICKLZ) {
@@ -154,10 +155,10 @@ int pack_set_compression(pack_t pack, int compression)
 
 int pack_set_minimum_size(pack_t pack, size_t min_size)
 {
-	if (pack->running)
+	if (unlikely(pack->running))
 		return EALREADY;
 
-	if (min_size < 0)
+	if (unlikely(min_size < 0))
 		return EINVAL;
 
 	pack->compress_min = min_size;
@@ -167,10 +168,10 @@ int pack_set_minimum_size(pack_t pack, size_t min_size)
 int pack_process_start(pack_t pack, ps_buffer_t *from, ps_buffer_t *to)
 {
 	int ret;
-	if (pack->running)
+	if (unlikely(pack->running))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(pack->glc, &pack->thread, from, to)))
+	if (unlikely((ret = glc_thread_create(pack->glc, &pack->thread, from, to))))
 		return ret;
 	pack->running = 1;
 
@@ -179,7 +180,7 @@ int pack_process_start(pack_t pack, ps_buffer_t *from, ps_buffer_t *to)
 
 int pack_process_wait(pack_t pack)
 {
-	if (!pack->running)
+	if (unlikely(!pack->running))
 		return EAGAIN;
 
 	glc_thread_wait(&pack->thread);
@@ -198,7 +199,7 @@ void pack_finish_callback(void *ptr, int err)
 {
 	pack_t pack = (pack_t) ptr;
 
-	if (err)
+	if (unlikely(err))
 		glc_log(pack->glc, GLC_ERROR, "pack", "%s (%d)", strerror(err), err);
 }
 
@@ -221,8 +222,7 @@ int pack_thread_create_callback(void *ptr, void **threadptr)
 
 void pack_thread_finish_callback(void *ptr, void *threadptr, int err)
 {
-	if (threadptr)
-		free(threadptr);
+	free(threadptr);
 }
 
 int pack_read_callback(glc_thread_state_t *state)
@@ -231,7 +231,7 @@ int pack_read_callback(glc_thread_state_t *state)
 
 	/* compress only audio and pictures */
 	if ((state->read_size > pack->compress_min) &&
-	    ((state->header.type == GLC_MESSAGE_VIDEO_FRAME) |
+	    ((state->header.type == GLC_MESSAGE_VIDEO_FRAME) ||
 	     (state->header.type == GLC_MESSAGE_AUDIO_DATA))) {
 		if (pack->compression == PACK_QUICKLZ) {
 #ifdef __QUICKLZ
@@ -371,10 +371,10 @@ int unpack_init(unpack_t *unpack, glc_t *glc)
 int unpack_process_start(unpack_t unpack, ps_buffer_t *from, ps_buffer_t *to)
 {
 	int ret;
-	if (unpack->running)
+	if (unlikely(unpack->running))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(unpack->glc, &unpack->thread, from, to)))
+	if (unlikely((ret = glc_thread_create(unpack->glc, &unpack->thread, from, to))))
 		return ret;
 	unpack->running = 1;
 
@@ -383,7 +383,7 @@ int unpack_process_start(unpack_t unpack, ps_buffer_t *from, ps_buffer_t *to)
 
 int unpack_process_wait(unpack_t unpack)
 {
-	if (!unpack->running)
+	if (unlikely(!unpack->running))
 		return EAGAIN;
 
 	glc_thread_wait(&unpack->thread);
@@ -402,7 +402,7 @@ void unpack_finish_callback(void *ptr, int err)
 {
 	unpack_t unpack = (unpack_t) ptr;
 
-	if (err)
+	if (unlikely(err))
 		glc_log(unpack->glc, GLC_ERROR, "unpack", "%s (%d)", strerror(err), err);
 }
 

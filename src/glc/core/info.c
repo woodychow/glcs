@@ -24,8 +24,9 @@
 #include <glc/common/util.h>
 
 #include "info.h"
+#include "optimization.h"
 
-#define INFO_DETAILED_VIDEO           2
+#define INFO_DETAILED_VIDEO         2
 #define INFO_DETAILED_AUDIO_FORMAT  2
 #define INFO_FPS                    3
 #define INFO_AUDIO                  4
@@ -69,22 +70,22 @@ struct info_s {
 	struct info_audio_stream_s *audio_list;
 };
 
-int info_get_video_stream(info_t info, struct info_video_stream_s **video,
+static int info_get_video_stream(info_t info, struct info_video_stream_s **video,
 			  glc_stream_id_t id);
-int info_get_audio_stream(info_t info, struct info_audio_stream_s **audio,
+static int info_get_audio_stream(info_t info, struct info_audio_stream_s **audio,
 			  glc_stream_id_t id);
 
-void info_finish_callback(void *ptr, int err);
-int info_read_callback();
+static void info_finish_callback(void *ptr, int err);
+static int info_read_callback();
 
-void video_format_info(info_t info, glc_video_format_message_t *video_message);
-void video_frame_info(info_t info, glc_video_frame_header_t *pic_header);
-void audio_format_info(info_t info, glc_audio_format_message_t *fmt_message);
-void audio_data_info(info_t info, glc_audio_data_header_t *audio_header);
-void color_info(info_t info, glc_color_message_t *color_msg);
+static void video_format_info(info_t info, glc_video_format_message_t *video_message);
+static void video_frame_info(info_t info, glc_video_frame_header_t *pic_header);
+static void audio_format_info(info_t info, glc_audio_format_message_t *fmt_message);
+static void audio_data_info(info_t info, glc_audio_data_header_t *audio_header);
+static void color_info(info_t info, glc_color_message_t *color_msg);
 
-void print_time(FILE *stream, glc_utime_t time);
-void print_bytes(FILE *stream, size_t bytes);
+static void print_time(FILE *stream, glc_utime_t time);
+static void print_bytes(FILE *stream, size_t bytes);
 
 int info_init(info_t *info, glc_t *glc)
 {
@@ -114,7 +115,7 @@ int info_destroy(info_t info)
 
 int info_set_level(info_t info, int level)
 {
-	if (level < 1)
+	if (unlikely(level < 1))
 		return EINVAL;
 
 	info->level = level;
@@ -130,10 +131,10 @@ int info_set_stream(info_t info, FILE *stream)
 int info_process_start(info_t info, ps_buffer_t *from)
 {
 	int ret;
-	if (info->running)
+	if (unlikely(info->running))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(info->glc, &info->thread, from, NULL)))
+	if (unlikely((ret = glc_thread_create(info->glc, &info->thread, from, NULL))))
 		return ret;
 	info->running = 1;
 
@@ -142,7 +143,7 @@ int info_process_start(info_t info, ps_buffer_t *from)
 
 int info_process_wait(info_t info)
 {
-	if (!info->running)
+	if (unlikely(!info->running))
 		return EAGAIN;
 
 	glc_thread_wait(&info->thread);
@@ -157,7 +158,7 @@ void info_finish_callback(void *ptr, int err)
 	struct info_video_stream_s *video;
 	struct info_audio_stream_s *audio;
 
-	if (err)
+	if (unlikely(err))
 		glc_log(info->glc, GLC_ERROR, "info", "%s (%d)",
 			 strerror(err), err);
 
@@ -213,7 +214,8 @@ int info_read_callback(glc_thread_state_t *state)
 		fprintf(info->stream, "end of stream\n");
 	} else {
 		print_time(info->stream, info->time);
-		fprintf(info->stream, "error: unknown %zd B message with type 0x%02x\n", state->read_size, state->header.type);
+		fprintf(info->stream, "error: unknown %zd B message with type 0x%02x\n",
+			state->read_size, state->header.type);
 	}
 
 	return 0;
