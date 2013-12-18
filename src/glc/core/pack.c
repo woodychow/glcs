@@ -350,7 +350,7 @@ int pack_lzjb_write_callback(glc_thread_state_t *state)
 
 int unpack_init(unpack_t *unpack, glc_t *glc)
 {
-	*unpack = (unpack_t) calloc(sizeof(struct unpack_s));
+	*unpack = (unpack_t) calloc(1, sizeof(struct unpack_s));
 
 	(*unpack)->glc = glc;
 
