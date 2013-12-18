@@ -23,6 +23,7 @@
 #include "util.h"
 #include "log.h"
 #include "state.h"
+#include "optimization.h"
 
 /**
  * \brief thread private variables
@@ -42,7 +43,7 @@ struct glc_thread_private_s {
 	int ret;
 };
 
-void *glc_thread(void *argptr);
+static void *glc_thread(void *argptr);
 
 int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_buffer_t *to)
 {
@@ -51,11 +52,11 @@ int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_bu
 	pthread_attr_t attr;
 	size_t t;
 
-	if (thread->threads < 1)
+	if (unlikely(thread->threads < 1))
 		return EINVAL;
 
-	if (!(private = (struct glc_thread_private_s *)
-		calloc(1, sizeof(struct glc_thread_private_s))))
+	if (unlikely(!(private = (struct glc_thread_private_s *)
+		calloc(1, sizeof(struct glc_thread_private_s)))))
 		return ENOMEM;
 
 	thread->priv = private;
@@ -73,7 +74,8 @@ int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_bu
 	private->pthread_thread = malloc(sizeof(pthread_t) * thread->threads);
 	for (t = 0; t < thread->threads; t++) {
 		private->running_threads++;
-		if ((ret = pthread_create(&private->pthread_thread[t], &attr, glc_thread, private))) {
+		if (unlikely((ret = pthread_create(&private->pthread_thread[t], &attr,
+					  glc_thread, private)))) {
 			glc_log(private->glc, GLC_ERROR, "glc_thread",
 				 "can't create thread: %s (%d)", strerror(ret), ret);
 			private->running_threads--;
@@ -92,7 +94,7 @@ int glc_thread_wait(glc_thread_t *thread)
 	size_t t;
 
 	for (t = 0; t < thread->threads; t++) {
-		if ((ret = pthread_join(private->pthread_thread[t], NULL))) {
+		if (unlikely((ret = pthread_join(private->pthread_thread[t], NULL)))) {
 			glc_log(private->glc, GLC_ERROR, "glc_thread",
 				 "can't join thread: %s (%d)", strerror(ret), ret);
 			return ret;
@@ -131,12 +133,12 @@ void *glc_thread(void *argptr)
 	state.ptr = thread->ptr;
 
 	if (thread->flags & GLC_THREAD_READ) {
-		if ((ret = ps_packet_init(&read, private->from)))
+		if (unlikely((ret = ps_packet_init(&read, private->from))))
 			goto err;
 	}
 
 	if (thread->flags & GLC_THREAD_WRITE) {
-		if ((ps_packet_init(&write, private->to)))
+		if (unlikely((ps_packet_init(&write, private->to))))
 			goto err;
 	}
 
@@ -145,14 +147,14 @@ void *glc_thread(void *argptr)
 
 	/* create callback */
 	if (thread->thread_create_callback) {
-		if ((ret = thread->thread_create_callback(state.ptr, &state.threadptr)))
+		if (unlikely((ret = thread->thread_create_callback(state.ptr, &state.threadptr))))
 			goto err;
 	}
 
 	do {
 		/* open callback */
 		if (thread->open_callback) {
-			if ((ret = thread->open_callback(&state)))
+			if (unlikely((ret = thread->open_callback(&state))))
 				goto err;
 		}
 
@@ -162,34 +164,36 @@ void *glc_thread(void *argptr)
 		}
 
 		if ((thread->flags & GLC_THREAD_READ) && (!(state.flags & GLC_THREAD_STATE_SKIP_READ))) {
-			if ((ret = ps_packet_open(&read, PS_PACKET_READ)))
+			if (unlikely((ret = ps_packet_open(&read, PS_PACKET_READ))))
 				goto err;
-			if ((ret = ps_packet_read(&read, &state.header, sizeof(glc_message_header_t))))
+			if (unlikely((ret = ps_packet_read(&read, &state.header,
+						  sizeof(glc_message_header_t)))))
 				goto err;
-			if ((ret = ps_packet_getsize(&read, &state.read_size)))
+			if (unlikely((ret = ps_packet_getsize(&read, &state.read_size))))
 				goto err;
 			state.read_size -= sizeof(glc_message_header_t);
 			state.write_size = state.read_size;
 
 			/* header callback */
 			if (thread->header_callback) {
-				if ((ret = thread->header_callback(&state)))
+				if (unlikely((ret = thread->header_callback(&state))))
 					goto err;
 			}
 
-			if ((ret = ps_packet_dma(&read, (void *) &state.read_data,
-						 state.read_size, PS_ACCEPT_FAKE_DMA)))
+			if (unlikely((ret = ps_packet_dma(&read, (void *) &state.read_data,
+						 state.read_size, PS_ACCEPT_FAKE_DMA))))
 				goto err;
 
 			/* read callback */
 			if (thread->read_callback) {
-				if ((ret = thread->read_callback(&state)))
+				if (unlikely((ret = thread->read_callback(&state))))
 					goto err;
 			}
 		}
 
-		if ((thread->flags & GLC_THREAD_WRITE) && (!(state.flags & GLC_THREAD_STATE_SKIP_WRITE))) {
-			if ((ret = ps_packet_open(&write, PS_PACKET_WRITE)))
+		if ((thread->flags & GLC_THREAD_WRITE) &&
+		    (!(state.flags & GLC_THREAD_STATE_SKIP_WRITE))) {
+			if (unlikely((ret = ps_packet_open(&write, PS_PACKET_WRITE))))
 				goto err;
 
 			if (has_locked) {
@@ -198,37 +202,41 @@ void *glc_thread(void *argptr)
 			}
 
 			/* reserve space for header */
-			if ((ret = ps_packet_seek(&write, sizeof(glc_message_header_t))))
+			if (unlikely((ret = ps_packet_seek(&write,
+							sizeof(glc_message_header_t)))))
 				goto err;
 
 			if (!(state.flags & GLC_THREAD_STATE_UNKNOWN_FINAL_SIZE)) {
 				/* 'unlock' write */
-				if ((ret = ps_packet_setsize(&write,
-					                     sizeof(glc_message_header_t) + state.write_size)))
+				if (unlikely((ret = ps_packet_setsize(&write,
+					   sizeof(glc_message_header_t) + state.write_size))))
 					goto err;
 				write_size_set = 1;
 			}
 
 			if (state.flags & GLC_THREAD_COPY) {
 				/* should be faster, no need for fake dma */
-				if ((ret = ps_packet_write(&write, state.read_data, state.write_size)))
+				if (unlikely((ret = ps_packet_write(&write, state.read_data,
+							state.write_size))))
 					goto err;
 			} else {
-				if ((ret = ps_packet_dma(&write, (void *) &state.write_data,
-							 state.write_size, PS_ACCEPT_FAKE_DMA)))
+				if (unlikely((ret = ps_packet_dma(&write,
+							(void *) &state.write_data,
+							 state.write_size, PS_ACCEPT_FAKE_DMA))))
 						goto err;
 
 				/* write callback */
 				if (thread->write_callback) {
-					if ((ret = thread->write_callback(&state)))
+					if (unlikely((ret = thread->write_callback(&state))))
 						goto err;
 				}
 			}
 
 			/* write header */
-			if ((ret = ps_packet_seek(&write, 0)))
+			if (unlikely((ret = ps_packet_seek(&write, 0))))
 				goto err;
-			if ((ret = ps_packet_write(&write, &state.header, sizeof(glc_message_header_t))))
+			if (unlikely((ret = ps_packet_write(&write,
+					&state.header, sizeof(glc_message_header_t)))))
 				goto err;
 		}
 
@@ -238,26 +246,28 @@ void *glc_thread(void *argptr)
 			pthread_mutex_unlock(&private->open);
 		}
 
-		if ((thread->flags & GLC_THREAD_READ) && (!(state.flags & GLC_THREAD_STATE_SKIP_READ))) {
+		if ((thread->flags & GLC_THREAD_READ) &&
+		    (!(state.flags & GLC_THREAD_STATE_SKIP_READ))) {
 			ps_packet_close(&read);
 			state.read_data = NULL;
 			state.read_size = 0;
 		}
 
-		if ((thread->flags & GLC_THREAD_WRITE) && (!(state.flags & GLC_THREAD_STATE_SKIP_WRITE))) {
+		if ((thread->flags & GLC_THREAD_WRITE) &&
+		    (!(state.flags & GLC_THREAD_STATE_SKIP_WRITE))) {
 			if (!write_size_set) {
-				if ((ret = ps_packet_setsize(&write,
-							     sizeof(glc_message_header_t) + state.write_size)))
+				if (unlikely((ret = ps_packet_setsize(&write,
+					sizeof(glc_message_header_t) + state.write_size))))
 					goto err;
 			}
 			ps_packet_close(&write);
 			state.write_data = NULL;
-		state.write_size = 0;
+			state.write_size = 0;
 		}
 
 		/* close callback */
 		if (thread->close_callback) {
-			if ((ret = thread->close_callback(&state)))
+			if (unlikely((ret = thread->close_callback(&state))))
 				goto err;
 		}
 

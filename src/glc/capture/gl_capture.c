@@ -33,6 +33,7 @@
 #include <glc/common/util.h>
 
 #include "gl_capture.h"
+#include "optimization.h"
 
 #define GL_CAPTURE_TRY_PBO          0x1
 #define GL_CAPTURE_USE_PBO          0x2
@@ -116,29 +117,43 @@ struct gl_capture_s {
 	glUnmapBufferProc glUnmapBuffer;
 };
 
-int gl_capture_get_video_stream(gl_capture_t gl_capture,
+static int gl_capture_get_video_stream(gl_capture_t gl_capture,
 				struct gl_capture_video_stream_s **video,
 				Display *dpy, GLXDrawable drawable);
-int gl_capture_update_video_stream(gl_capture_t gl_capture,
+static int gl_capture_init_video_format(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video);
+static int gl_capture_write_video_format_message(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video,
+				unsigned int w, unsigned int h)
+static int gl_capture_update_video_stream(gl_capture_t gl_capture,
 				   struct gl_capture_video_stream_s *video);
 
-void gl_capture_error(gl_capture_t gl_capture, int err);
+static void gl_capture_error(gl_capture_t gl_capture, int err);
 
-int gl_capture_get_geometry(gl_capture_t gl_capture,
+static int gl_capture_get_geometry(gl_capture_t gl_capture,
 			    Display *dpy, Window win, unsigned int *w, unsigned int *h);
-int gl_capture_calc_geometry(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video,
-			     unsigned int w, unsigned int h);
-int gl_capture_update_screen(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video);
-int gl_capture_update_color(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video);
+static int gl_capture_calc_geometry(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video,
+				unsigned int w, unsigned int h);
+static int gl_capture_update_screen(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video);
+static int gl_capture_update_color(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video);
 
-int gl_capture_get_pixels(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video, char *to);
-int gl_capture_gen_indicator_list(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video);
+static int gl_capture_get_pixels(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video, char *to);
+static int gl_capture_gen_indicator_list(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video);
 
-int gl_capture_init_pbo(gl_capture_t gl);
-int gl_capture_create_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video);
-int gl_capture_destroy_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video);
-int gl_capture_start_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video);
-int gl_capture_read_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video);
+static int gl_capture_init_pbo(gl_capture_t gl);
+static int gl_capture_create_pbo(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video);
+static int gl_capture_destroy_pbo(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video);
+static int gl_capture_start_pbo(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video);
+static int gl_capture_read_pbo(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video);
 
 int gl_capture_init(gl_capture_t *gl_capture, glc_t *glc)
 {
@@ -159,7 +174,7 @@ int gl_capture_init(gl_capture_t *gl_capture, glc_t *glc)
 
 int gl_capture_set_buffer(gl_capture_t gl_capture, ps_buffer_t *buffer)
 {
-	if (gl_capture->to)
+	if (unlikely(gl_capture->to))
 		return EALREADY;
 
 	gl_capture->to = buffer;
@@ -186,7 +201,7 @@ int gl_capture_set_read_buffer(gl_capture_t gl_capture, GLenum buffer)
 
 int gl_capture_set_fps(gl_capture_t gl_capture, double fps)
 {
-	if (fps <= 0)
+	if (unlikely(fps <= 0))
 		return EINVAL;
 
 	gl_capture->fps = 1000000 / fps;
@@ -219,7 +234,7 @@ int gl_capture_try_pbo(gl_capture_t gl_capture, int try_pbo)
 	if (try_pbo) {
 		gl_capture->flags |= GL_CAPTURE_TRY_PBO;
 	} else {
-		if (gl_capture->flags & GL_CAPTURE_USE_PBO) {
+		if (unlikely(gl_capture->flags & GL_CAPTURE_USE_PBO)) {
 			glc_log(gl_capture->glc, GLC_WARNING, "gl_capture",
 				 "can't disable PBO; it is in use");
 			return EAGAIN;
@@ -305,7 +320,7 @@ int gl_capture_lock_fps(gl_capture_t gl_capture, int lock_fps)
 
 int gl_capture_start(gl_capture_t gl_capture)
 {
-	if (!gl_capture->to) {
+	if (unlikely(!gl_capture->to)) {
 		glc_log(gl_capture->glc, GLC_ERROR, "gl_capture",
 			 "no target buffer specified");
 		return EAGAIN;
@@ -446,14 +461,16 @@ int gl_capture_calc_geometry(gl_capture_t gl_capture, struct gl_capture_video_st
 	return 0;
 }
 
-int gl_capture_get_pixels(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video, char *to)
+int gl_capture_get_pixels(gl_capture_t gl_capture,
+			  struct gl_capture_video_stream_s *video, char *to)
 {
 	glPushAttrib(GL_PIXEL_MODE_BIT);
 	glPushClientAttrib(GL_CLIENT_PIXEL_STORE_BIT);
 
 	glReadBuffer(gl_capture->capture_buffer);
 	glPixelStorei(GL_PACK_ALIGNMENT, gl_capture->pack_alignment);
-	glReadPixels(video->cx, video->cy, video->cw, video->ch, gl_capture->format, GL_UNSIGNED_BYTE, to);
+	glReadPixels(video->cx, video->cy, video->cw, video->ch,
+		gl_capture->format, GL_UNSIGNED_BYTE, to);
 
 	glPopClientAttrib();
 	glPopAttrib();
@@ -461,7 +478,8 @@ int gl_capture_get_pixels(gl_capture_t gl_capture, struct gl_capture_video_strea
 	return 0;
 }
 
-int gl_capture_gen_indicator_list(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video)
+int gl_capture_gen_indicator_list(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video)
 {
 	int size;
 	if (!video->indicator_list)
@@ -495,50 +513,50 @@ int gl_capture_init_pbo(gl_capture_t gl_capture)
 {
 	const char *gl_extensions = (const char *) glGetString(GL_EXTENSIONS);
 
-	if (gl_extensions == NULL)
+	if (unlikely(gl_extensions == NULL))
 		return EINVAL;
 	
-	if (!strstr(gl_extensions, "GL_ARB_pixel_buffer_object"))
+	if (unlikely(!strstr(gl_extensions, "GL_ARB_pixel_buffer_object")))
 		return ENOTSUP;
 	
 	gl_capture->libGL_handle = dlopen("libGL.so.1", RTLD_LAZY);
-	if (!gl_capture->libGL_handle)
+	if (unlikely(!gl_capture->libGL_handle))
 		return ENOTSUP;
 	gl_capture->glXGetProcAddress =
 		(GLXGetProcAddressProc)
 		dlsym(gl_capture->libGL_handle, "glXGetProcAddressARB");
-	if (!gl_capture->glXGetProcAddress)
+	if (unlikely(!gl_capture->glXGetProcAddress))
 		return ENOTSUP;
 	
 	gl_capture->glGenBuffers =
 		(glGenBuffersProc)
 		gl_capture->glXGetProcAddress((const GLubyte *) "glGenBuffersARB");
-	if (!gl_capture->glGenBuffers)
+	if (unlikely(!gl_capture->glGenBuffers))
 		return ENOTSUP;
 	gl_capture->glDeleteBuffers =
 		(glDeleteBuffersProc)
 		gl_capture->glXGetProcAddress((const GLubyte *) "glDeleteBuffersARB");
-	if (!gl_capture->glDeleteBuffers)
+	if (unlikely(!gl_capture->glDeleteBuffers))
 		return ENOTSUP;
 	gl_capture->glBufferData =
 		(glBufferDataProc)
 		gl_capture->glXGetProcAddress((const GLubyte *) "glBufferDataARB");
-	if (!gl_capture->glBufferData)
+	if (unlikely(!gl_capture->glBufferData))
 		return ENOTSUP;
 	gl_capture->glBindBuffer =
 		(glBindBufferProc)
 		gl_capture->glXGetProcAddress((const GLubyte *) "glBindBufferARB");
-	if (!gl_capture->glBindBuffer)
+	if (unlikely(!gl_capture->glBindBuffer))
 		return ENOTSUP;
 	gl_capture->glMapBuffer =
 		(glMapBufferProc)
 		gl_capture->glXGetProcAddress((const GLubyte *) "glMapBufferARB");
-	if (!gl_capture->glMapBuffer)
+	if (unlikely(!gl_capture->glMapBuffer))
 		return ENOTSUP;
 	gl_capture->glUnmapBuffer =
 		(glUnmapBufferProc)
 		gl_capture->glXGetProcAddress((const GLubyte *) "glUnmapBufferARB");
-	if (!gl_capture->glUnmapBuffer)
+	if (unlikely(!gl_capture->glUnmapBuffer))
 		return ENOTSUP;
 
 	glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
@@ -569,7 +587,6 @@ int gl_capture_create_pbo(gl_capture_t gl_capture, struct gl_capture_video_strea
 int gl_capture_destroy_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_s *video)
 {
 	glc_log(gl_capture->glc, GLC_DEBUG, "gl_capture", "destroying PBO");
-
 	gl_capture->glDeleteBuffers(1, &video->pbo);
 	return 0;
 }
@@ -578,7 +595,7 @@ int gl_capture_start_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream
 {
 	GLint binding;
 
-	if (video->pbo_active)
+	if (unlikely(video->pbo_active))
 		return EAGAIN;
 
 	glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING_ARB, &binding);
@@ -590,7 +607,8 @@ int gl_capture_start_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream
 	glReadBuffer(gl_capture->capture_buffer);
 	glPixelStorei(GL_PACK_ALIGNMENT, gl_capture->pack_alignment);
 	/* to = ((char *)NULL + (offset)) */
-	glReadPixels(video->cx, video->cy, video->cw, video->ch, gl_capture->format, GL_UNSIGNED_BYTE, NULL);
+	glReadPixels(video->cx, video->cy, video->cw, video->ch,
+		gl_capture->format, GL_UNSIGNED_BYTE, NULL);
 
 	video->pbo_active = 1;
 
@@ -605,14 +623,14 @@ int gl_capture_read_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_
 	GLvoid *buf;
 	GLint binding;
 	
-	if (!video->pbo_active)
+	if (unlikely(!video->pbo_active))
 		return EAGAIN;
 
 	glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING_ARB, &binding);
 
 	gl_capture->glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, video->pbo);
 	buf = gl_capture->glMapBuffer(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY);
-	if (!buf)
+	if (unlikely(!buf))
 		return EINVAL;
 
 	ps_packet_write(&video->packet, buf, video->row * video->ch);
@@ -634,11 +652,11 @@ int gl_capture_get_video_stream(gl_capture_t gl_capture, struct gl_capture_video
 	while (fvideo != NULL) {
 		if ((fvideo->drawable == drawable) && (fvideo->dpy == dpy))
 			break;
-		
+
 		fvideo = fvideo->next;
 	}
 	pthread_rwlock_unlock(&gl_capture->videolist_lock);
-	
+
 	if (fvideo == NULL) {
 		fvideo = (struct gl_capture_video_stream_s *)
 			calloc(1, sizeof(struct gl_capture_video_stream_s));
@@ -662,12 +680,76 @@ int gl_capture_get_video_stream(gl_capture_t gl_capture, struct gl_capture_video
 	return 0;
 }
 
-int gl_capture_update_video_stream(gl_capture_t gl_capture,
-			  struct gl_capture_video_stream_s *video)
+int gl_capture_init_video_format(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s *video)
+{
+	/* initialize screen information */
+	gl_capture_update_screen(gl_capture, video);
+
+	/* reset gamma values */
+	video->gamma_red = video->gamma_green = video->gamma_blue = 1.0;
+
+	if (gl_capture->format == GL_BGRA)
+		video->format = GLC_VIDEO_BGRA;
+	else
+		video->format = GLC_VIDEO_BGR;
+
+	if (gl_capture->pack_alignment == 8)
+		video->flags |= GLC_VIDEO_DWORD_ALIGNED;
+
+	return 0;
+}
+
+int gl_capture_write_video_format_message(gl_capture_t gl_capture,
+			struct gl_capture_video_stream_s *video,
+			unsigned int w, unsigned int h)
 {
 	glc_message_header_t msg;
 	glc_video_format_message_t format_msg;
+
+	gl_capture_calc_geometry(gl_capture, video, w, h);
+
+	glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+		 "creating/updating configuration for video %d", video->id);
+
+	msg.type = GLC_MESSAGE_VIDEO_FORMAT;
+	format_msg.flags = video->flags;
+	format_msg.format = video->format;
+	format_msg.id = video->id;
+	format_msg.width = video->cw;
+	format_msg.height = video->ch;
+
+	ps_packet_open(&video->packet, PS_PACKET_WRITE);
+	ps_packet_write(&video->packet, &msg, sizeof(glc_message_header_t));
+	ps_packet_write(&video->packet, &format_msg, sizeof(glc_video_format_message_t));
+	ps_packet_close(&video->packet);
+
+	glc_log(gl_capture->glc, GLC_DEBUG, "gl_capture",
+		 "video %d: %ux%u (%ux%u), 0x%02x flags", video->id,
+		 video->cw, video->ch, video->w, video->h, video->flags);
+
+	/* how about color correction? */
+	gl_capture_update_color(gl_capture, video);
+
+	if (gl_capture->flags & GL_CAPTURE_USE_PBO) {
+		if (video->pbo)
+			gl_capture_destroy_pbo(gl_capture, video);
+
+		if (gl_capture_create_pbo(gl_capture, video)) {
+			gl_capture->flags &= ~(GL_CAPTURE_TRY_PBO | GL_CAPTURE_USE_PBO);
+			/** \todo destroy pbo stuff? */
+			/** \todo race condition? */
+		}
+	}
+
+	return 0;
+}
+
+int gl_capture_update_video_stream(gl_capture_t gl_capture,
+			  struct gl_capture_video_stream_s *video)
+{
 	unsigned int w, h;
+	int ret;
 
 	/* initialize PBO if not already done */
 	if ((!(gl_capture->flags & GL_CAPTURE_USE_PBO)) &&
@@ -686,61 +768,13 @@ int gl_capture_update_video_stream(gl_capture_t gl_capture,
 				video->attribWin ? video->attribWin : video->drawable,
 				&w, &h);
 
-	if (!video->format) {
-		/* initialize screen information */
-		gl_capture_update_screen(gl_capture, video);
-
-		/* reset gamma values */
-		video->gamma_red = video->gamma_green = video->gamma_blue = 1.0;
-
-		if (gl_capture->format == GL_BGRA)
-			video->format = GLC_VIDEO_BGRA;
-		else if (gl_capture->format == GL_BGR)
-			video->format = GLC_VIDEO_BGR;
-		else
-			return EINVAL;
-
-		if (gl_capture->pack_alignment == 8)
-			video->flags |= GLC_VIDEO_DWORD_ALIGNED;
+	if (unlikely(!video->format)) {
+		gl_capture_init_video_format(gl_capture,video);
 	}
 
-	if ((w != video->w) | (h != video->h)) {
-		gl_capture_calc_geometry(gl_capture, video, w, h);
-
-		glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
-			 "creating/updating configuration for video %d", video->id);
-
-		msg.type = GLC_MESSAGE_VIDEO_FORMAT;
-		format_msg.flags = video->flags;
-		format_msg.format = video->format;
-		format_msg.id = video->id;
-		format_msg.width = video->cw;
-		format_msg.height = video->ch;
-
-		ps_packet_open(&video->packet, PS_PACKET_WRITE);
-		ps_packet_write(&video->packet, &msg, sizeof(glc_message_header_t));
-		ps_packet_write(&video->packet, &format_msg, sizeof(glc_video_format_message_t));
-		ps_packet_close(&video->packet);
-
-		glc_log(gl_capture->glc, GLC_DEBUG, "gl_capture",
-			 "video %d: %ux%u (%ux%u), 0x%02x flags", video->id,
-			 video->cw, video->ch, video->w, video->h, video->flags);
-
-		/* how about color correction? */
-		gl_capture_update_color(gl_capture, video);
-
-		if (gl_capture->flags & GL_CAPTURE_USE_PBO) {
-			if (video->pbo)
-				gl_capture_destroy_pbo(gl_capture, video);
-
-			if (gl_capture_create_pbo(gl_capture, video)) {
-				gl_capture->flags &= ~(GL_CAPTURE_TRY_PBO | GL_CAPTURE_USE_PBO);
-				/** \todo destroy pbo stuff? */
-				/** \todo race condition? */
-			}
-		}
+	if (unlikely((w != video->w) || (h != video->h))) {
+		gl_capture_write_video_format_message(gl_capture, video, w, h);
 	}
-
 
 	if ((gl_capture->flags & GL_CAPTURE_DRAW_INDICATOR) &&
 	    (!video->indicator_list))
@@ -767,7 +801,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	pic.id = video->id;
 
 	/* get current time */
-	if (gl_capture->flags & GL_CAPTURE_IGNORE_TIME)
+	if (unlikely(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))
 		now = video->last + gl_capture->fps;
 	else
 		now = glc_state_time(gl_capture->glc);
@@ -785,43 +819,45 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 		goto finish;
 
 	/* not really needed until now */
-	if ((ret = gl_capture_update_video_stream(gl_capture, video)))
-		goto finish;
+	gl_capture_update_video_stream(gl_capture, video);
 
 	/* if PBO is not active, just start transfer and finish */
-	if ((gl_capture->flags & GL_CAPTURE_USE_PBO) && (!video->pbo_active)) {
+	if (unlikely((gl_capture->flags & GL_CAPTURE_USE_PBO) &&
+	     __sync_bool_compare_and_swap(&video->pbo_active,0,1))) {
 		ret = gl_capture_start_pbo(gl_capture, video);
 		video->pbo_time = now;
-
 		goto finish;
 	}
 
-	if (ps_packet_open(&video->packet, ((gl_capture->flags & GL_CAPTURE_LOCK_FPS) |
-					    (gl_capture->flags & GL_CAPTURE_IGNORE_TIME)) ?
-					   (PS_PACKET_WRITE) :
-					   (PS_PACKET_WRITE | PS_PACKET_TRY)))
+	if (unlikely(ps_packet_open(&video->packet,
+				((gl_capture->flags & GL_CAPTURE_LOCK_FPS) ||
+				(gl_capture->flags & GL_CAPTURE_IGNORE_TIME)) ?
+				(PS_PACKET_WRITE) :
+				(PS_PACKET_WRITE | PS_PACKET_TRY))))
 		goto finish;
-	if ((ret = ps_packet_write(&video->packet, &msg, sizeof(glc_message_header_t))))
+	if (unlikely((ret = ps_packet_write(&video->packet,
+					    &msg, sizeof(glc_message_header_t)))))
 		goto cancel;
-	if ((ret = ps_packet_write(&video->packet, &pic, sizeof(glc_video_frame_header_t))))
+	if (unlikely((ret = ps_packet_write(&video->packet,
+					    &pic, sizeof(glc_video_frame_header_t)))))
 		goto cancel;
 
 	if (gl_capture->flags & GL_CAPTURE_USE_PBO) {
 		/* is this safe, what happens if this is called simultaneously? */
-		if ((ret = ps_packet_setsize(&video->packet, video->row * video->ch
-								+ sizeof(glc_message_header_t)
-								+ sizeof(glc_video_frame_header_t))))
+		if (unlikely((ret = ps_packet_setsize(&video->packet, video->row * video->ch
+							+ sizeof(glc_message_header_t)
+							+ sizeof(glc_video_frame_header_t)))))
 			goto cancel;
 
-		if ((ret = gl_capture_read_pbo(gl_capture, video)))
+		if (unlikely((ret = gl_capture_read_pbo(gl_capture, video))))
 			goto cancel;
 
 		ret = gl_capture_start_pbo(gl_capture, video);
 		video->pbo_time = now;
 	} else {
-		if ((ret = ps_packet_dma(&video->packet, (void *) &dma,
-					video->row * video->ch, PS_ACCEPT_FAKE_DMA)))
-		goto cancel;
+		if (unlikely((ret = ps_packet_dma(&video->packet, (void *) &dma,
+					video->row * video->ch, PS_ACCEPT_FAKE_DMA))))
+			goto cancel;
 
 		ret = gl_capture_get_pixels(gl_capture, video, dma);
 	}
@@ -841,7 +877,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	 We should accept framedrops (eg. not allow this difference
 	 to grow unlimited.
 	*/
-	if (!(gl_capture->flags & GL_CAPTURE_IGNORE_TIME)) {
+	if (likely(!(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))) {
 		now = glc_state_time(gl_capture->glc);
 
 		if (now - video->last > gl_capture->fps) /* reasonable choice? */
@@ -872,7 +908,7 @@ int gl_capture_refresh_color_correction(gl_capture_t gl_capture)
 {
 	struct gl_capture_video_stream_s *video;
 
-	if (!(gl_capture->flags & GL_CAPTURE_CAPTURING))
+	if (unlikely(!(gl_capture->flags & GL_CAPTURE_CAPTURING)))
 		return 0; /* capturing not active */
 
 	glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
@@ -882,7 +918,6 @@ int gl_capture_refresh_color_correction(gl_capture_t gl_capture)
 	video = gl_capture->video;
 	while (video != NULL) {
 		gl_capture_update_color(gl_capture, video);
-		
 		video = video->next;
 	}
 	pthread_rwlock_unlock(&gl_capture->videolist_lock);
@@ -918,13 +953,15 @@ int gl_capture_update_color(gl_capture_t gl_capture, struct gl_capture_video_str
 		 "color correction: brightness=%f, contrast=%f, red=%f, green=%f, blue=%f",
 		 msg.brightness, msg.contrast, msg.red, msg.green, msg.blue);
 
-	if ((ret = ps_packet_open(&video->packet, PS_PACKET_WRITE)))
+	if (unlikely((ret = ps_packet_open(&video->packet, PS_PACKET_WRITE))))
 		goto err;
-	if ((ret = ps_packet_write(&video->packet, &msg_hdr, sizeof(glc_message_header_t))))
+	if (unlikely((ret = ps_packet_write(&video->packet,
+				&msg_hdr, sizeof(glc_message_header_t)))))
 		goto err;
-	if ((ret = ps_packet_write(&video->packet, &msg, sizeof(glc_color_message_t))))
+	if (unlikely((ret = ps_packet_write(&video->packet,
+				&msg, sizeof(glc_color_message_t)))))
 		goto err;
-	if ((ret = ps_packet_close(&video->packet)))
+	if (unlikely((ret = ps_packet_close(&video->packet))))
 		goto err;
 
 	return 0;

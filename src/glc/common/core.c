@@ -21,6 +21,7 @@
 #include "core.h"
 #include "log.h"
 #include "util.h"
+#include "optimization.h"
 
 struct glc_core_s {
 	struct timeval init_time;
@@ -37,22 +38,20 @@ int glc_init(glc_t *glc)
 	int ret = 0;
 
 	/* clear 'em */
-	glc->core = NULL;
+	glc->core  = NULL;
 	glc->state = NULL;
-	glc->util = NULL;
-	glc->log = NULL;
+	glc->util  = NULL;
+	glc->log   = NULL;
 
 	glc->core = (glc_core_t) calloc(1, sizeof(struct glc_core_s));
 
 	gettimeofday(&glc->core->init_time, NULL);
 	glc->core->threads_hint = sysconf(_SC_NPROCESSORS_ONLN);
 
-	if ((ret = glc_log_init(glc)))
+	if (unlikely((ret = glc_log_init(glc))))
 		return ret;
-	if ((ret = glc_util_init(glc)))
-		return ret;
-
-	return 0;
+	ret = glc_util_init(glc);
+	return ret;
 }
 
 int glc_destroy(glc_t *glc)
@@ -95,7 +94,7 @@ long int glc_threads_hint(glc_t *glc)
 
 int glc_set_threads_hint(glc_t *glc, long int count)
 {
-	if (count <= 0)
+	if (unlikely(count <= 0))
 		return EINVAL;
 	glc->core->threads_hint = count;
 	return 0;

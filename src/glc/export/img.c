@@ -27,6 +27,7 @@
 #include <glc/common/util.h>
 
 #include "img.h"
+#include "optimization.h"
 
 struct img_private_s;
 typedef int (*img_write_proc)(img_t img,
@@ -56,17 +57,17 @@ struct img_s {
 	img_write_proc write_proc;
 };
 
-void img_finish_callback(void *ptr, int err);
-int img_read_callback(glc_thread_state_t *state);
+static void img_finish_callback(void *ptr, int err);
+static int img_read_callback(glc_thread_state_t *state);
 
-int img_video_format_message(img_t img, glc_video_format_message_t *video_format);
-int img_video_frame_message(img_t img, glc_video_frame_header_t *pic_hdr,
+static int img_video_format_message(img_t img, glc_video_format_message_t *video_format);
+static int img_video_frame_message(img_t img, glc_video_frame_header_t *pic_hdr,
 	    const unsigned char *pic, size_t pic_size);
 
-int img_write_bmp(img_t img, const unsigned char *pic,
+static int img_write_bmp(img_t img, const unsigned char *pic,
 		  unsigned int w, unsigned int h,
 		  const char *filename);
-int img_write_png(img_t img, const unsigned char *pic,
+static int img_write_png(img_t img, const unsigned char *pic,
 		  unsigned int w, unsigned int h,
 		  const char *filename);
 
@@ -99,10 +100,10 @@ int img_destroy(img_t img)
 int img_process_start(img_t img, ps_buffer_t *from)
 {
 	int ret;
-	if (img->running)
+	if (unlikely(img->running))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(img->glc, &img->thread, from, NULL)))
+	if (unlikely((ret = glc_thread_create(img->glc, &img->thread, from, NULL))))
 		return ret;
 	img->running = 1;
 
@@ -111,7 +112,7 @@ int img_process_start(img_t img, ps_buffer_t *from)
 
 int img_process_wait(img_t img)
 {
-	if (!img->running)
+	if (unlikely(!img->running))
 		return EAGAIN;
 
 	glc_thread_wait(&img->thread);
@@ -160,7 +161,7 @@ void img_finish_callback(void *ptr, int err)
 
 	glc_log(img->glc, GLC_INFORMATION, "img", "%d images written", img->i);
 
-	if (err)
+	if (unlikely(err))
 		glc_log(img->glc, GLC_ERROR, "img", "%s (%d)", strerror(err), err);
 
 	if (img->prev_video_frame_message) {
@@ -178,10 +179,11 @@ int img_read_callback(glc_thread_state_t *state)
 	int ret = 0;
 
 	if (state->header.type == GLC_MESSAGE_VIDEO_FORMAT) {
-		ret = img_video_format_message(img, (glc_video_format_message_t *) state->read_data);
+		ret = img_video_format_message(img,
+			(glc_video_format_message_t *) state->read_data);
 	} else if (state->header.type == GLC_MESSAGE_VIDEO_FRAME) {
 		ret = img_video_frame_message(img, (glc_video_frame_header_t *) state->read_data,
-			      (const unsigned char *) &state->read_data[sizeof(glc_video_frame_header_t)],
+		      (const unsigned char *) &state->read_data[sizeof(glc_video_frame_header_t)],
 			      state->read_size);
 	}
 
@@ -193,7 +195,7 @@ int img_video_format_message(img_t img, glc_video_format_message_t *video_format
 	if (video_format->id != img->id)
 		return 0;
 
-	if (video_format->format != GLC_VIDEO_BGR) {
+	if (unlikely(video_format->format != GLC_VIDEO_BGR)) {
 		glc_log(img->glc, GLC_ERROR, "img",
 				"video stream %d is in unsupported format", video_format->id);
 		return ENOTSUP;
@@ -233,7 +235,8 @@ int img_video_frame_message(img_t img, glc_video_frame_header_t *pic_hdr,
 			img->time += img->fps_usec;
 
 			snprintf(filename, sizeof(filename) - 1, img->filename_format, img->i++);
-			img->write_proc(img, img->prev_video_frame_message, img->w, img->h, filename);
+			img->write_proc(img, img->prev_video_frame_message,
+					img->w, img->h, filename);
 		}
 
 		img->time += img->fps_usec;
@@ -256,7 +259,7 @@ int img_write_bmp(img_t img, const unsigned char *pic,
 
 	glc_log(img->glc, GLC_INFORMATION, "img",
 		 "opening %s for writing (BMP)", filename);
-	if (!(fd = fopen(filename, "w")))
+	if (unlikely(!(fd = fopen(filename, "w"))))
 		return errno;
 
 	fwrite("BM", 1, 2, fd);
@@ -293,7 +296,7 @@ int img_write_png(img_t img, const unsigned char *pic,
 
 	glc_log(img->glc, GLC_INFORMATION, "img",
 		 "opening %s for writing (PNG)", filename);
-	if (!(fd = fopen(filename, "w")))
+	if (unlikely(!(fd = fopen(filename, "w"))))
 		return errno;
 
 	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING,

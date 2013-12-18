@@ -28,6 +28,7 @@
 #include <glc/common/util.h>
 
 #include "yuv4mpeg.h"
+#include "optimization.h"
 
 struct yuv4mpeg_s {
 	glc_t *glc;
@@ -49,12 +50,13 @@ struct yuv4mpeg_s {
 	glc_stream_id_t id;
 };
 
-int yuv4mpeg_read_callback(glc_thread_state_t *state);
-void yuv4mpeg_finish_callback(void *priv, int err);
+static int yuv4mpeg_read_callback(glc_thread_state_t *state);
+static void yuv4mpeg_finish_callback(void *priv, int err);
 
-int yuv4mpeg_handle_hdr(yuv4mpeg_t yuv4mpeg, glc_video_format_message_t *video_format);
-int yuv4mpeg_handle_video_frame_message(yuv4mpeg_t yuv4mpeg, glc_video_frame_header_t *pic_header, char *data);
-int yuv4mpeg_write_video_frame_message(yuv4mpeg_t yuv4mpeg, char *pic);
+static int yuv4mpeg_handle_hdr(yuv4mpeg_t yuv4mpeg, glc_video_format_message_t *video_format);
+static int yuv4mpeg_handle_video_frame_message(yuv4mpeg_t yuv4mpeg,
+			glc_video_frame_header_t *pic_header, char *data);
+static int yuv4mpeg_write_video_frame_message(yuv4mpeg_t yuv4mpeg, char *pic);
 
 int yuv4mpeg_init(yuv4mpeg_t *yuv4mpeg, glc_t *glc)
 {
@@ -110,10 +112,10 @@ int yuv4mpeg_set_interpolation(yuv4mpeg_t yuv4mpeg, int interpolate)
 int yuv4mpeg_process_start(yuv4mpeg_t yuv4mpeg, ps_buffer_t *from)
 {
 	int ret;
-	if (yuv4mpeg->running)
+	if (unlikely(yuv4mpeg->running))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(yuv4mpeg->glc, &yuv4mpeg->thread, from, NULL)))
+	if (unlikely((ret = glc_thread_create(yuv4mpeg->glc, &yuv4mpeg->thread, from, NULL))))
 		return ret;
 	yuv4mpeg->running = 1;
 
@@ -122,7 +124,7 @@ int yuv4mpeg_process_start(yuv4mpeg_t yuv4mpeg, ps_buffer_t *from)
 
 int yuv4mpeg_process_wait(yuv4mpeg_t yuv4mpeg)
 {
-	if (!yuv4mpeg->running)
+	if (unlikely(!yuv4mpeg->running))
 		return EAGAIN;
 
 	glc_thread_wait(&yuv4mpeg->thread);
@@ -135,7 +137,7 @@ void yuv4mpeg_finish_callback(void *priv, int err)
 {
 	yuv4mpeg_t yuv4mpeg = (yuv4mpeg_t) priv;
 
-	if (err)
+	if (unlikely(err))
 		glc_log(yuv4mpeg->glc, GLC_ERROR, "yuv4mpeg", "%s (%d)", strerror(err), err);
 
 	if (yuv4mpeg->to) {
@@ -157,9 +159,12 @@ int yuv4mpeg_read_callback(glc_thread_state_t *state)
 	yuv4mpeg_t yuv4mpeg = (yuv4mpeg_t) state->ptr;
 
 	if (state->header.type == GLC_MESSAGE_VIDEO_FORMAT)
-		return yuv4mpeg_handle_hdr(yuv4mpeg, (glc_video_format_message_t *) state->read_data);
+		return yuv4mpeg_handle_hdr(yuv4mpeg,
+		(glc_video_format_message_t *) state->read_data);
 	else if (state->header.type == GLC_MESSAGE_VIDEO_FRAME)
-		return yuv4mpeg_handle_video_frame_message(yuv4mpeg, (glc_video_frame_header_t *) state->read_data, &state->read_data[sizeof(glc_video_frame_header_t)]);
+		return yuv4mpeg_handle_video_frame_message(yuv4mpeg,
+			(glc_video_frame_header_t *) state->read_data,
+			&state->read_data[sizeof(glc_video_frame_header_t)]);
 
 	return 0;
 }
@@ -172,12 +177,13 @@ int yuv4mpeg_handle_hdr(yuv4mpeg_t yuv4mpeg, glc_video_format_message_t *video_f
 	if (video_format->id != yuv4mpeg->id)
 		return 0;
 
-	if (!(video_format->format == GLC_VIDEO_YCBCR_420JPEG))
+	if (unlikely(!(video_format->format == GLC_VIDEO_YCBCR_420JPEG)))
 		return ENOTSUP;
 
 	if (yuv4mpeg->to) {
 		fclose(yuv4mpeg->to);
-		glc_log(yuv4mpeg->glc, GLC_WARNING, "yuv4mpeg", "video stream configuration changed");
+		glc_log(yuv4mpeg->glc, GLC_WARNING, "yuv4mpeg",
+			"video stream configuration changed");
 	}
 
 	filename = (char *) malloc(1024);
@@ -185,7 +191,7 @@ int yuv4mpeg_handle_hdr(yuv4mpeg_t yuv4mpeg, glc_video_format_message_t *video_f
 	glc_log(yuv4mpeg->glc, GLC_INFORMATION, "yuv4mpeg", "opening %s for writing", filename);
 
 	yuv4mpeg->to = fopen(filename, "w");
-	if (!yuv4mpeg->to) {
+	if (unlikely(!yuv4mpeg->to)) {
 		glc_log(yuv4mpeg->glc, GLC_ERROR, "yuv4mpeg", "can't open %s", filename);
 		free(filename);
 		return EINVAL;
@@ -232,7 +238,8 @@ int yuv4mpeg_handle_video_frame_message(yuv4mpeg_t yuv4mpeg, glc_video_frame_hea
 	if (yuv4mpeg->time < pic_hdr->time) {
 		while (yuv4mpeg->time + yuv4mpeg->fps_usec < pic_hdr->time) {
 			if (yuv4mpeg->interpolate)
-				yuv4mpeg_write_video_frame_message(yuv4mpeg, yuv4mpeg->prev_video_frame_message);
+				yuv4mpeg_write_video_frame_message(yuv4mpeg,
+					yuv4mpeg->prev_video_frame_message);
 			yuv4mpeg->time += yuv4mpeg->fps_usec;
 		}
 		yuv4mpeg_write_video_frame_message(yuv4mpeg, data);

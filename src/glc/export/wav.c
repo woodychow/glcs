@@ -26,6 +26,7 @@
 #include <glc/common/util.h>
 
 #include "wav.h"
+#include "optimization.h"
 
 struct wav_hdr {
 	u_int32_t id;
@@ -74,11 +75,11 @@ struct wav_s {
 	struct audio_stream_s *stream;
 };
 
-int wav_read_callback(glc_thread_state_t *state);
-void wav_finish_callback(void *priv, int err);
+static int wav_read_callback(glc_thread_state_t *state);
+static void wav_finish_callback(void *priv, int err);
 
-int wav_write_hdr(wav_t wav, glc_audio_format_message_t *fmt_msg);
-int wav_write_audio(wav_t wav, glc_audio_data_header_t *audio_msg, char *data);
+static int wav_write_hdr(wav_t wav, glc_audio_format_message_t *fmt_msg);
+static int wav_write_audio(wav_t wav, glc_audio_data_header_t *audio_msg, char *data);
 
 int wav_init(wav_t *wav, glc_t *glc)
 {
@@ -113,10 +114,10 @@ int wav_destroy(wav_t wav)
 int wav_process_start(wav_t wav, ps_buffer_t *from)
 {
 	int ret;
-	if (wav->running)
+	if (unlikely(wav->running))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(wav->glc, &wav->thread, from, NULL)))
+	if (unlikely((ret = glc_thread_create(wav->glc, &wav->thread, from, NULL))))
 		return ret;
 	wav->running = 1;
 
@@ -125,7 +126,7 @@ int wav_process_start(wav_t wav, ps_buffer_t *from)
 
 int wav_process_wait(wav_t wav)
 {
-	if (!wav->running)
+	if (unlikely(!wav->running))
 		return EAGAIN;
 
 	glc_thread_wait(&wav->thread);
@@ -162,7 +163,7 @@ void wav_finish_callback(void *priv, int err)
 {
 	wav_t wav = (wav_t ) priv;
 
-	if (err)
+	if (unlikely(err))
 		glc_log(wav->glc, GLC_ERROR, "wav", "%s (%d)", strerror(err), err);
 
 	if (wav->to) {
@@ -180,7 +181,8 @@ int wav_read_callback(glc_thread_state_t *state)
 	if (state->header.type == GLC_MESSAGE_AUDIO_FORMAT)
 		return wav_write_hdr(wav, (glc_audio_format_message_t *) state->read_data);
 	else if (state->header.type == GLC_MESSAGE_AUDIO_DATA)
-		return wav_write_audio(wav, (glc_audio_data_header_t *) state->read_data, &state->read_data[sizeof(glc_audio_data_header_t)]);
+		return wav_write_audio(wav, (glc_audio_data_header_t *) state->read_data,
+			&state->read_data[sizeof(glc_audio_data_header_t)]);
 	
 	return 0;
 }
@@ -215,7 +217,7 @@ int wav_write_hdr(wav_t wav, glc_audio_format_message_t *fmt_msg)
 	snprintf(filename, 1023, wav->filename_format, ++wav->file_count);
 	glc_log(wav->glc, GLC_INFORMATION, "wav", "opening %s for writing", filename);
 	wav->to = fopen(filename, "w");
-	if (!wav->to) {
+	if (unlikely(!wav->to)) {
 		glc_log(wav->glc, GLC_ERROR, "wav", "can't open %s", filename);
 		free(filename);
 		return EINVAL;
@@ -259,7 +261,7 @@ int wav_write_audio(wav_t wav, glc_audio_data_header_t *audio_hdr, char *data)
 	
 	glc_utime_t duration = ((glc_utime_t) audio_hdr->size * (glc_utime_t) 1000000) / (glc_utime_t) wav->bps;
 
-	if (!wav->to) {
+	if (unlikely(!wav->to)) {
 		glc_log(wav->glc, GLC_ERROR, "wav", "broken stream %d", audio_hdr->id);
 		return EINVAL;
 	}

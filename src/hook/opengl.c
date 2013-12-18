@@ -26,6 +26,7 @@
 #include <glc/capture/gl_capture.h>
 
 #include "lib.h"
+#include "optimization.h"
 
 struct opengl_private_s {
 	glc_t *glc;
@@ -74,7 +75,7 @@ int opengl_init(glc_t *glc)
 	glc_log(opengl.glc, GLC_DEBUG, "opengl", "initializing");
 
 	/* initialize gl_capture object */
-	if ((ret = gl_capture_init(&opengl.gl_capture, opengl.glc)))
+	if (unlikely((ret = gl_capture_init(&opengl.gl_capture, opengl.glc))))
 		return ret;
 
 	/* load environment variables */
@@ -149,7 +150,7 @@ int opengl_init(glc_t *glc)
 
 int opengl_start(ps_buffer_t *buffer)
 {
-	if (opengl.started)
+	if (unlikely(opengl.started))
 		return EINVAL;
 
 	opengl.buffer = buffer;
@@ -244,17 +245,17 @@ int opengl_push_message(glc_message_header_t *hdr, void *message, size_t message
 	else
 		to = opengl.buffer;
 
-	if ((ret = ps_packet_init(&packet, to)))
+	if (unlikely((ret = ps_packet_init(&packet, to))))
 		goto finish;
-	if ((ret = ps_packet_open(&packet, PS_PACKET_WRITE)))
+	if (unlikely((ret = ps_packet_open(&packet, PS_PACKET_WRITE))))
 		goto finish;
-	if ((ret = ps_packet_write(&packet, hdr, sizeof(glc_message_header_t))))
+	if (unlikely((ret = ps_packet_write(&packet, hdr, sizeof(glc_message_header_t)))))
 		goto finish;
-	if ((ret = ps_packet_write(&packet, message, message_size)))
+	if (unlikely((ret = ps_packet_write(&packet, message, message_size))))
 		goto finish;
-	if ((ret = ps_packet_close(&packet)))
+	if (unlikely((ret = ps_packet_close(&packet))))
 		goto finish;
-	if ((ret = ps_packet_destroy(&packet)))
+	if (unlikely((ret = ps_packet_destroy(&packet))))
 		goto finish;
 
 finish:
@@ -296,22 +297,22 @@ void get_real_opengl()
 		get_real_dlsym();
 
 	opengl.libGL_handle = lib.dlopen("libGL.so.1", RTLD_LAZY);
-	if (!opengl.libGL_handle)
+	if (unlikely(!opengl.libGL_handle))
 		goto err;
 	opengl.glXSwapBuffers =
 	  (void (*)(Display *, GLXDrawable))
 	    lib.dlsym(opengl.libGL_handle, "glXSwapBuffers");
-	if (!opengl.glXSwapBuffers)
+	if (unlikely(!opengl.glXSwapBuffers))
 		goto err;
 	opengl.glFinish =
 	  (void (*)(void))
 	    lib.dlsym(opengl.libGL_handle, "glFinish");
-	if (!opengl.glFinish)
+	if (unlikely(!opengl.glFinish))
 		goto err;
 	opengl.glXGetProcAddressARB =
 	  (__GLXextFuncPtr (*)(const GLubyte *))
 	    lib.dlsym(opengl.libGL_handle, "glXGetProcAddressARB");
-	if (!opengl.glXGetProcAddressARB)
+	if (unlikely(!opengl.glXGetProcAddressARB))
 		goto err;
 	opengl.glXCreateWindow =
 	  (GLXWindow (*)(Display *dpy, GLXFBConfig, Window, const int *))

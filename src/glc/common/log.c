@@ -20,6 +20,7 @@
 #include "glc.h"
 #include "core.h"
 #include "log.h"
+#include "optimization.h"
 
 struct glc_log_s {
 	int level;
@@ -28,7 +29,7 @@ struct glc_log_s {
 	pthread_mutex_t log_mutex;
 };
 
-void glc_log_write_prefix(glc_t *glc, FILE *stream, int level, const char *module);
+static void glc_log_write_prefix(glc_t *glc, FILE *stream, int level, const char *module);
 
 int glc_log_init(glc_t *glc)
 {
@@ -52,13 +53,13 @@ int glc_log_open_file(glc_t *glc, const char *filename)
 {
 	int ret;
 	FILE *stream = fopen(filename, "w");
-	if (!stream)
+	if (unlikely(!stream))
 		return errno;
 
 	/* line buffered like stderr */
 	setvbuf( stream, NULL, _IOLBF, 0 );
 
-	if ((ret = glc_log_set_stream(glc, stream))) {
+	if (unlikely((ret = glc_log_set_stream(glc, stream)))) {
 		fclose(stream);
 		return ret;
 	}
@@ -70,7 +71,7 @@ int glc_log_open_file(glc_t *glc, const char *filename)
 int glc_log_set_stream(glc_t *glc, FILE *stream)
 {
 	/** \todo check that stream is good */
-	if (!stream)
+	if (unlikely(!stream))
 		return EINVAL;
 	glc->log->stream = stream;
 	return 0;
@@ -78,7 +79,7 @@ int glc_log_set_stream(glc_t *glc, FILE *stream)
 
 int glc_log_set_level(glc_t *glc, int level)
 {
-	if (level < 0)
+	if (unlikely(level < 0))
 		return EINVAL;
 	glc->log->level = level;
 	return 0;
@@ -87,7 +88,7 @@ int glc_log_set_level(glc_t *glc, int level)
 int glc_log_close(glc_t *glc)
 {
 	glc_log(glc, GLC_INFORMATION, "log", "log closed");
-	if (fclose(glc->log->stream))
+	if (unlikely(fclose(glc->log->stream)))
 		return errno;
 	glc->log->stream = glc->log->default_stream;
 

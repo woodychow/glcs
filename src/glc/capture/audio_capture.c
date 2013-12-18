@@ -24,6 +24,7 @@
 #include <glc/common/util.h>
 
 #include "audio_capture.h"
+#include "optimization.h"
 
 #define AUDIO_CAPTURE_CAPTURING       0x1
 #define AUDIO_CAPTURE_CFG_CHANGED     0x2
@@ -45,14 +46,12 @@ struct audio_capture_s {
 	glc_utime_t time;
 };
 
-int audio_capture_write_cfg(audio_capture_t audio_capture);
+static int audio_capture_write_cfg(audio_capture_t audio_capture);
 
 int audio_capture_init(audio_capture_t *audio_capture, glc_t *glc)
 {
 	*audio_capture = (audio_capture_t) calloc(1, sizeof(struct audio_capture_s));
-
 	(*audio_capture)->glc = glc;
-
 	return 0;
 }
 
@@ -67,7 +66,7 @@ int audio_capture_destroy(audio_capture_t audio_capture)
 
 int audio_capture_set_buffer(audio_capture_t audio_capture, ps_buffer_t *buffer)
 {
-	if (audio_capture->target)
+	if (unlikely(audio_capture->target))
 		return EAGAIN;
 
 	audio_capture->target = buffer;
@@ -80,7 +79,7 @@ int audio_capture_set_flags(audio_capture_t audio_capture,
 			    glc_flags_t format_flags)
 {
 	/* check for unsupported flags */
-	if (format_flags & (~(GLC_AUDIO_INTERLEAVED)))
+	if (unlikely(format_flags & (~(GLC_AUDIO_INTERLEAVED))))
 		return EINVAL;
 
 	if (audio_capture->format_flags != format_flags) {
@@ -93,9 +92,9 @@ int audio_capture_set_flags(audio_capture_t audio_capture,
 int audio_capture_set_format(audio_capture_t audio_capture,
 			     glc_audio_format_t format)
 {
-	if ((format != GLC_AUDIO_S16_LE) |
-	    (format != GLC_AUDIO_S24_LE) |
-	    (format != GLC_AUDIO_S32_LE))
+	if (unlikely((format != GLC_AUDIO_S16_LE) ||
+	    (format != GLC_AUDIO_S24_LE) ||
+	    (format != GLC_AUDIO_S32_LE)))
 		return EINVAL;
 
 	if (audio_capture->format != format) {
@@ -107,7 +106,7 @@ int audio_capture_set_format(audio_capture_t audio_capture,
 int audio_capture_set_rate(audio_capture_t audio_capture,
 			   u_int32_t rate)
 {
-	if (!rate)
+	if (unlikely(!rate))
 		return EINVAL;
 
 	if (audio_capture->rate != rate) {
@@ -120,7 +119,7 @@ int audio_capture_set_rate(audio_capture_t audio_capture,
 int audio_capture_set_channels(audio_capture_t audio_capture,
 			       u_int32_t channels)
 {
-	if (!channels)
+	if (unlikely(!channels))
 		return EINVAL;
 
 	if (audio_capture->channels != channels) {
@@ -164,17 +163,17 @@ size_t audio_capture_frames_to_bytes(audio_capture_t audio_capture,
 
 int audio_capture_start(audio_capture_t audio_capture)
 {
-	if (audio_capture->flags & AUDIO_CAPTURE_CAPTURING)
+	if (unlikely(audio_capture->flags & AUDIO_CAPTURE_CAPTURING))
 		return EALREADY;
 
 	/* target buffer must be set */
-	if (!audio_capture->target)
+	if (unlikely(!audio_capture->target))
 		return EINVAL;
 
 	/* and we need valid configuration */
-	if ((!audio_capture->format_flags) |
-	    (!audio_capture->rate) |
-	    (!audio_capture->channels))
+	if (unlikely((!audio_capture->format_flags) ||
+	    (!audio_capture->rate) ||
+	    (!audio_capture->channels)))
 		return EINVAL;
 
 	audio_capture->flags |= AUDIO_CAPTURE_CAPTURING;
@@ -183,7 +182,7 @@ int audio_capture_start(audio_capture_t audio_capture)
 
 int audio_capture_stop(audio_capture_t audio_capture)
 {
-	if (!(audio_capture->flags & AUDIO_CAPTURE_CAPTURING))
+	if (unlikely(!(audio_capture->flags & AUDIO_CAPTURE_CAPTURING)))
 		return EAGAIN;
 
 	audio_capture->flags &= ~AUDIO_CAPTURE_CAPTURING;
@@ -200,22 +199,22 @@ int audio_capture_write_cfg(audio_capture_t audio_capture)
 		glc_state_audio_new(audio_capture->glc, &audio_capture->id,
 				    &audio_capture->state_audio);
 
-	hdr.type = GLC_MESSAGE_AUDIO_FORMAT;
-	fmt_msg.id = audio_capture->id;
-	fmt_msg.flags = audio_capture->format_flags;
-	fmt_msg.rate = audio_capture->rate;
+	hdr.type         = GLC_MESSAGE_AUDIO_FORMAT;
+	fmt_msg.id       = audio_capture->id;
+	fmt_msg.flags    = audio_capture->format_flags;
+	fmt_msg.rate     = audio_capture->rate;
 	fmt_msg.channels = audio_capture->channels;
-	fmt_msg.format = audio_capture->format;
+	fmt_msg.format   = audio_capture->format;
 
-	if ((ret = ps_packet_open(&audio_capture->packet, PS_PACKET_WRITE)))
+	if (unlikely((ret = ps_packet_open(&audio_capture->packet, PS_PACKET_WRITE))))
 		goto err;
-	if ((ret = ps_packet_write(&audio_capture->packet,
-				   &hdr, sizeof(glc_message_header_t))))
+	if (unlikely((ret = ps_packet_write(&audio_capture->packet,
+				   &hdr, sizeof(glc_message_header_t)))))
 		goto err;
-	if ((ret = ps_packet_write(&audio_capture->packet,
-				   &fmt_msg, sizeof(glc_audio_format_message_t))))
+	if (unlikely((ret = ps_packet_write(&audio_capture->packet,
+				   &fmt_msg, sizeof(glc_audio_format_message_t)))))
 		goto err;
-	if ((ret = ps_packet_close(&audio_capture->packet)))
+	if (unlikely((ret = ps_packet_close(&audio_capture->packet))))
 		goto err;
 
 	return 0;
@@ -240,7 +239,7 @@ int audio_capture_data(audio_capture_t audio_capture,
 		return 0;
 
 	if (audio_capture->flags & AUDIO_CAPTURE_CFG_CHANGED) {
-		if ((ret = audio_capture_write_cfg(audio_capture)))
+		if (unlikely((ret = audio_capture_write_cfg(audio_capture))))
 			return ret;
 		audio_capture->flags &= ~AUDIO_CAPTURE_CFG_CHANGED;
 	}
@@ -258,18 +257,18 @@ int audio_capture_data(audio_capture_t audio_capture,
 					(glc_utime_t) (audio_capture_frames_to_bytes(audio_capture, 1) *
 						       audio_capture->rate);
 
-	if ((ret = ps_packet_open(&audio_capture->packet, PS_PACKET_WRITE)))
+	if (unlikely((ret = ps_packet_open(&audio_capture->packet, PS_PACKET_WRITE))))
 		goto err;
-	if ((ret = ps_packet_write(&audio_capture->packet,
-				   &msg_hdr, sizeof(glc_message_header_t))))
+	if (unlikely((ret = ps_packet_write(&audio_capture->packet,
+				   &msg_hdr, sizeof(glc_message_header_t)))))
 		goto err;
-	if ((ret = ps_packet_write(&audio_capture->packet,
-				   &audio_hdr, sizeof(glc_audio_data_header_t))))
+	if (unlikely((ret = ps_packet_write(&audio_capture->packet,
+				   &audio_hdr, sizeof(glc_audio_data_header_t)))))
 		goto err;
-	if ((ret = ps_packet_write(&audio_capture->packet,
-				   data, size)))
+	if (unlikely((ret = ps_packet_write(&audio_capture->packet,
+				   data, size))))
 		goto err;
-	if ((ret = ps_packet_close(&audio_capture->packet)))
+	if (unlikely((ret = ps_packet_close(&audio_capture->packet))))
 		goto err;
 
 	return 0;

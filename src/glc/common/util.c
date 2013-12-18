@@ -22,6 +22,7 @@
 #include "core.h"
 #include "log.h"
 #include "util.h"
+#include "optimization.h"
 
 /**
  * \brief util private structure
@@ -127,15 +128,16 @@ int glc_util_write_end_of_stream(glc_t *glc, ps_buffer_t *to)
 	glc_message_header_t header;
 	header.type = GLC_MESSAGE_CLOSE;
 
-	if ((ret = ps_packet_init(&packet, to)))
+	if (unlikely((ret = ps_packet_init(&packet, to))))
 		goto finish;
-	if ((ret = ps_packet_open(&packet, PS_PACKET_WRITE)))
+	if (unlikely((ret = ps_packet_open(&packet, PS_PACKET_WRITE))))
 		goto finish;
-	if ((ret = ps_packet_write(&packet, &header, sizeof(glc_message_header_t))))
+	if (unlikely((ret = ps_packet_write(&packet,
+			&header, sizeof(glc_message_header_t)))))
 		goto finish;
-	if ((ret = ps_packet_close(&packet)))
+	if (unlikely((ret = ps_packet_close(&packet))))
 		goto finish;
-	if ((ret = ps_packet_destroy(&packet)))
+	if (unlikely((ret = ps_packet_destroy(&packet))))
 		goto finish;
 
 finish:

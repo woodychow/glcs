@@ -33,6 +33,7 @@
 #include <glc/common/util.h>
 
 #include "alsa_hook.h"
+#include "optimization.h"
 
 #define ALSA_HOOK_CAPTURING    0x1
 #define ALSA_HOOK_ALLOW_SKIP   0x2
@@ -89,19 +90,22 @@ struct alsa_hook_s {
 	struct alsa_hook_stream_s *stream;
 };
 
-int alsa_hook_init_streams(alsa_hook_t alsa_hook);
-int alsa_hook_get_stream(alsa_hook_t alsa_hook, snd_pcm_t *pcm, struct alsa_hook_stream_s **stream);
-int alsa_hook_stream_init(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
-void *alsa_hook_mmap_pos(const snd_pcm_channel_area_t *area, snd_pcm_uframes_t offset);
-int alsa_hook_complex_to_interleaved(struct alsa_hook_stream_s *stream, const snd_pcm_channel_area_t *areas, snd_pcm_uframes_t offset, snd_pcm_uframes_t frames, char *to);
+static int alsa_hook_init_streams(alsa_hook_t alsa_hook);
+static int alsa_hook_get_stream(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
+				struct alsa_hook_stream_s **stream);
+static int alsa_hook_stream_init(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
+static void *alsa_hook_mmap_pos(const snd_pcm_channel_area_t *area, snd_pcm_uframes_t offset);
+static int alsa_hook_complex_to_interleaved(struct alsa_hook_stream_s *stream,
+				const snd_pcm_channel_area_t *areas, snd_pcm_uframes_t offset,
+				snd_pcm_uframes_t frames, char *to);
 
-int alsa_hook_wait_for_thread(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
-int alsa_hook_lock_write(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
-int alsa_hook_unlock_write(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
-int alsa_hook_set_data_size(struct alsa_hook_stream_s *stream, size_t size);
-void *alsa_hook_thread(void *argptr);
+static int alsa_hook_wait_for_thread(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
+static int alsa_hook_lock_write(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
+static int alsa_hook_unlock_write(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
+static int alsa_hook_set_data_size(struct alsa_hook_stream_s *stream, size_t size);
+static void *alsa_hook_thread(void *argptr);
 
-glc_audio_format_t pcm_fmt_to_glc_fmt(snd_pcm_format_t pcm_fmt);
+static glc_audio_format_t pcm_fmt_to_glc_fmt(snd_pcm_format_t pcm_fmt);
 
 int alsa_hook_init(alsa_hook_t *alsa_hook, glc_t *glc)
 {
@@ -114,7 +118,7 @@ int alsa_hook_init(alsa_hook_t *alsa_hook, glc_t *glc)
 
 int alsa_hook_set_buffer(alsa_hook_t alsa_hook, ps_buffer_t *buffer)
 {
-	if (alsa_hook->to)
+	if (unlikely(alsa_hook->to))
 		return EALREADY;
 
 	alsa_hook->to = buffer;
@@ -133,7 +137,7 @@ int alsa_hook_allow_skip(alsa_hook_t alsa_hook, int allow_skip)
 
 int alsa_hook_start(alsa_hook_t alsa_hook)
 {
-	if (!alsa_hook->to) {
+	if (unlikely(!alsa_hook->to)) {
 		glc_log(alsa_hook->glc, GLC_ERROR, "alsa_hook",
 			 "target buffer not specified");
 		return EAGAIN;
@@ -170,10 +174,10 @@ int alsa_hook_init_streams(alsa_hook_t alsa_hook)
 {
 	struct alsa_hook_stream_s *stream = alsa_hook->stream;
 
-	if (!alsa_hook->to)
+	if (unlikely(!alsa_hook->to))
 		return EAGAIN;
 
-	if (alsa_hook->started)
+	if (unlikely(alsa_hook->started))
 		return EALREADY;
 
 	/* initialize all pending streams */
@@ -191,7 +195,7 @@ int alsa_hook_destroy(alsa_hook_t alsa_hook)
 {
 	struct alsa_hook_stream_s *del;
 
-	if (alsa_hook == NULL)
+	if (unlikely(alsa_hook == NULL))
 		return EINVAL;
 
 	while (alsa_hook->stream != NULL) {
@@ -288,21 +292,24 @@ void *alsa_hook_thread(void *argptr)
 		sem_wait(&stream->capture_full);
 		stream->capture_ready = 0;
 
-		if (!stream->capture_running)
+		if (unlikely(!stream->capture_running))
 			break;
 
 		hdr.time = stream->capture_time;
 		hdr.size = stream->capture_size;
 
-		if ((ret = ps_packet_open(&stream->packet, PS_PACKET_WRITE)))
+		if (unlikely((ret = ps_packet_open(&stream->packet, PS_PACKET_WRITE))))
 			break;
-		if ((ret = ps_packet_write(&stream->packet, &msg_hdr, sizeof(glc_message_header_t))))
+		if (unlikely((ret = ps_packet_write(&stream->packet, &msg_hdr,
+					sizeof(glc_message_header_t)))))
 			break;
-		if ((ret = ps_packet_write(&stream->packet, &hdr, sizeof(glc_audio_data_header_t))))
+		if (unlikely((ret = ps_packet_write(&stream->packet, &hdr,
+					sizeof(glc_audio_data_header_t)))))
 			break;
-		if ((ret = ps_packet_write(&stream->packet, stream->capture_data, hdr.size)))
+		if (unlikely((ret = ps_packet_write(&stream->packet,
+					stream->capture_data, hdr.size))))
 			break;
-		if ((ret = ps_packet_close(&stream->packet)))
+		if (unlikely((ret = ps_packet_close(&stream->packet))))
 			break;
 
 		if (!(stream->mode & SND_PCM_ASYNC))
@@ -369,11 +376,12 @@ int alsa_hook_set_data_size(struct alsa_hook_stream_s *stream, size_t size)
 	stream->capture_data_size = size;
 
 	if (stream->capture_data)
-		stream->capture_data = (char *) realloc(stream->capture_data, stream->capture_data_size);
+		stream->capture_data = (char *) realloc(stream->capture_data,
+						stream->capture_data_size);
 	else
 		stream->capture_data = (char *) malloc(stream->capture_data_size);
 
-	if (!stream->capture_data)
+	if (unlikely(!stream->capture_data))
 		return ENOMEM;
 
 	return 0;
@@ -420,18 +428,19 @@ int alsa_hook_writei(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 
 	alsa_hook_get_stream(alsa_hook, pcm, &stream);
 
-	if (!stream->initialized) {
+	if (unlikely(!stream->initialized)) {
 		ret = EINVAL;
 		goto unlock;
 	}
 
-	if ((ret = alsa_hook_lock_write(alsa_hook, stream)))
+	if (unlikely((ret = alsa_hook_lock_write(alsa_hook, stream))))
 		return ret;
 
-	if ((ret = alsa_hook_wait_for_thread(alsa_hook, stream)))
+	if (unlikely((ret = alsa_hook_wait_for_thread(alsa_hook, stream))))
 		goto unlock;
 
-	if ((ret = alsa_hook_set_data_size(stream, snd_pcm_frames_to_bytes(pcm, size))))
+	if (unlikely((ret = alsa_hook_set_data_size(stream,
+				snd_pcm_frames_to_bytes(pcm, size)))))
 		goto unlock;
 
 	stream->capture_time = glc_state_time(alsa_hook->glc);
@@ -454,25 +463,26 @@ int alsa_hook_writen(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 
 	alsa_hook_get_stream(alsa_hook, pcm, &stream);
 
-	if (!stream->initialized) {
+	if (unlikely(!stream->initialized)) {
 		ret = EINVAL;
 		goto unlock;
 	}
 
-	if ((ret = alsa_hook_lock_write(alsa_hook, stream)))
+	if (unlikely((ret = alsa_hook_lock_write(alsa_hook, stream))))
 		return ret;
 
-	if (stream->flags & GLC_AUDIO_INTERLEAVED) {
+	if (unlikely(stream->flags & GLC_AUDIO_INTERLEAVED)) {
 		glc_log(alsa_hook->glc, GLC_ERROR, "alsa_hook",
 			 "stream format (interleaved) incompatible with snd_pcm_writen()");
 		ret = EINVAL;
 		goto unlock;
 	}
 
-	if ((ret = alsa_hook_wait_for_thread(alsa_hook, stream)))
+	if (unlikely((ret = alsa_hook_wait_for_thread(alsa_hook, stream))))
 		goto unlock;
 
-	if ((ret = alsa_hook_set_data_size(stream, snd_pcm_frames_to_bytes(pcm, size))))
+	if (unlikely((ret = alsa_hook_set_data_size(stream,
+				snd_pcm_frames_to_bytes(pcm, size)))))
 		goto unlock;
 
 	stream->capture_time = glc_state_time(alsa_hook->glc);
@@ -499,12 +509,12 @@ int alsa_hook_mmap_begin(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 
 	alsa_hook_get_stream(alsa_hook, pcm, &stream);
 
-	if (!stream->initialized) {
+	if (unlikely(!stream->initialized)) {
 		alsa_hook_unlock_write(alsa_hook, stream);
 		return EINVAL;
 	}
 
-	if ((ret = alsa_hook_lock_write(alsa_hook, stream)))
+	if (unlikely((ret = alsa_hook_lock_write(alsa_hook, stream))))
 		return ret;
 
 	stream->mmap_areas = areas;
@@ -527,27 +537,28 @@ int alsa_hook_mmap_commit(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 
 	alsa_hook_get_stream(alsa_hook, pcm, &stream);
 
-	if ((ret = alsa_hook_lock_write(alsa_hook, stream)))
+	if (unlikely((ret = alsa_hook_lock_write(alsa_hook, stream))))
 		return ret;
 
-	if (stream->channels == 0)
+	if (unlikely(stream->channels == 0))
 		goto unlock; /* 0 channels :P */
 
-	if (!stream->mmap_areas) {
+	if (unlikely(!stream->mmap_areas)) {
 		/* this might actually happen */
 		glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
 			 "snd_pcm_mmap_commit() before snd_pcm_mmap_begin()");
 		return EINVAL; /* not locked */
 	}
 
-	if (offset != stream->offset)
+	if (unlikely(offset != stream->offset))
 		glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
 			 "offset=%lu != stream->offset=%lu", offset, stream->offset);
 
-	if ((ret = alsa_hook_wait_for_thread(alsa_hook, stream)))
+	if (unlikely((ret = alsa_hook_wait_for_thread(alsa_hook, stream))))
 		goto unlock;
 
-	if ((ret = alsa_hook_set_data_size(stream, snd_pcm_frames_to_bytes(pcm, frames))))
+	if (unlikely((ret = alsa_hook_set_data_size(stream,
+			snd_pcm_frames_to_bytes(pcm, frames)))))
 		goto unlock;
 
 	stream->capture_time = glc_state_time(alsa_hook->glc);
@@ -612,7 +623,7 @@ int alsa_hook_hw_params(alsa_hook_t alsa_hook, snd_pcm_t *pcm, snd_pcm_hw_params
 	int dir, ret;
 
 	alsa_hook_get_stream(alsa_hook, pcm, &stream);
-	if ((ret = alsa_hook_lock_write(alsa_hook, stream)))
+	if (unlikely((ret = alsa_hook_lock_write(alsa_hook, stream))))
 		return ret;
 
 	glc_log(alsa_hook->glc, GLC_DEBUG, "alsa_hook",
@@ -620,25 +631,26 @@ int alsa_hook_hw_params(alsa_hook_t alsa_hook, snd_pcm_t *pcm, snd_pcm_hw_params
 		 stream->pcm, stream->id);
 
 	/* extract information */
-	if ((ret = snd_pcm_hw_params_get_format(params, &format)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_get_format(params, &format)) < 0))
 		goto err;
 	stream->flags = 0; /* zero flags */
 	stream->format = pcm_fmt_to_glc_fmt(format);
-	if (!stream->format) {
+	if (unlikely(!stream->format)) {
 		glc_log(alsa_hook->glc, GLC_ERROR, "alsa_hook",
 			"%p: unsupported audio format 0x%02x", stream->pcm, format);
 		ret = ENOTSUP;
 		goto err;
 	}
-	if ((ret = snd_pcm_hw_params_get_rate(params, &stream->rate, &dir)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_get_rate(params, &stream->rate, &dir)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_get_channels(params, &stream->channels)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_get_channels(params, &stream->channels)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_get_period_size(params, &period_size, NULL)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_get_period_size(params, &period_size, NULL)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_get_access(params, &access)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_get_access(params, &access)) < 0))
 		goto err;
-	if ((access == SND_PCM_ACCESS_RW_INTERLEAVED) | (access == SND_PCM_ACCESS_MMAP_INTERLEAVED))
+	if ((access == SND_PCM_ACCESS_RW_INTERLEAVED) ||
+	    (access == SND_PCM_ACCESS_MMAP_INTERLEAVED))
 		stream->flags |= GLC_AUDIO_INTERLEAVED;
 	else if (access == SND_PCM_ACCESS_MMAP_COMPLEX) {
 		stream->flags |= GLC_AUDIO_INTERLEAVED; /* convert to interleaved */
@@ -656,7 +668,7 @@ int alsa_hook_hw_params(alsa_hook_t alsa_hook, snd_pcm_t *pcm, snd_pcm_hw_params
 
 	stream->fmt = 1;
 	if (alsa_hook->started) {
-		if ((ret = alsa_hook_stream_init(alsa_hook, stream)))
+		if (unlikely((ret = alsa_hook_stream_init(alsa_hook, stream))))
 			goto err;
 	}
 
@@ -677,7 +689,7 @@ int alsa_hook_stream_init(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stre
 	glc_message_header_t msg_hdr;
 	glc_audio_format_message_t fmt_msg;
 
-	if (!stream->fmt)
+	if (unlikely(!stream->fmt))
 		return EINVAL;
 
 	/* we need proper id for the stream */
