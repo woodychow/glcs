@@ -14,8 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
-#include <semaphore.h>
 #include <packetstream.h>
 #include <errno.h>
 
@@ -100,6 +98,11 @@ int file_set_callback(file_t file, callback_request_func_t callback)
 	return 0;
 }
 
+/*
+ * Default file access permissions for new files.
+ */
+#define FILE_MODE (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+
 int file_open_target(file_t file, const char *filename)
 {
 	int fd, ret = 0;
@@ -111,9 +114,9 @@ int file_open_target(file_t file, const char *filename)
 		 filename,
 		 file->sync ? "sync" : "no sync");
 
-	fd = open(filename, O_CREAT | O_WRONLY | (file->sync ? O_SYNC : 0), 0644);
+	fd = open(filename, O_CREAT | O_WRONLY | (file->sync ? O_SYNC : 0), FILE_MODE);
 
-	if (unlikely(fd == -1)) {
+	if (unlikely(fd < 0)) {
 		glc_log(file->glc, GLC_ERROR, "file", "can't open %s: %s (%d)",
 			 filename, strerror(errno), errno);
 		return errno;
@@ -125,20 +128,55 @@ int file_open_target(file_t file, const char *filename)
 	return ret;
 }
 
+static int lock_reg(int fd, int cmd, int type, off_t offset, int whence, off_t len)
+{
+	struct flock lock;
+
+	lock.l_type   = type;   /* F_RDLCK, F_WRLCK, F_UNLCK */
+	lock.l_start  = offset; /* byte offset, relative to l_whence */
+	lock.l_whence = whence; /* SEEK_SET, SEEK_CUR, SEEK_END */
+	lock.l_len    = len;    /* #bytes (0 means to EOF) */
+
+	return fcntl(fd, cmd, &lock);
+}
+
+#define write_lock(fd, offset, whence, len) \
+        lock_reg((fd), F_SETLK, F_WRLCK, (offset), (whence), (len))
+#define lockfile(fd) write_lock((fd), 0, SEEK_SET, 0)
+
 int file_set_target(file_t file, int fd)
 {
+	struct stat statbuf;
 	if (unlikely(file->fd >= 0))
 		return EBUSY;
 
-	if (unlikely(flock(fd, LOCK_EX | LOCK_NB) == -1)) {
+	/*
+	 * turn on set-group-ID and turn off group-execute.
+	 * Required for mandatory locking. Must also enable it
+	 * when mounting the fs with the generic fs mount
+	 * option 'mand'. See mount command man page for details.
+	 */
+
+        if (unlikely(fstat(fd, &statbuf) < 0)) {
+		glc_log(file->glc, GLC_ERROR, "file",
+			"fstat error: %s (%d)", strerror(errno), errno);
+		return errno;
+	}
+        if (unlikely(fchmod(fd, (statbuf.st_mode & ~S_IXGRP) | S_ISGID) < 0)) {
+		glc_log(file->glc, GLC_ERROR, "file",
+			"fchmod error: %s (%d)", strerror(errno), errno);
+		return errno;
+	}
+
+	if (unlikely(lockfile(fd) < 0)) {
 		glc_log(file->glc, GLC_ERROR, "file",
 			 "can't lock file: %s (%d)", strerror(errno), errno);
 		return errno;
 	}
 
 	/* truncate file when we have locked it */
-	lseek(file->fd, 0, SEEK_SET);
-	ftruncate(file->fd, 0);
+	lseek(fd, 0, SEEK_SET);
+	ftruncate(fd, 0);
 
 	file->fd = fd;
 	file->flags |= FILE_WRITING;
@@ -150,12 +188,6 @@ int file_close_target(file_t file)
 	if (unlikely((file->fd < 0) || (file->flags & FILE_RUNNING) ||
 	    (!(file->flags & FILE_WRITING))))
 		return EAGAIN;
-
-	/* try to remove lock */
-	if (unlikely(flock(file->fd, LOCK_UN) == -1))
-		glc_log(file->glc, GLC_WARNING,
-			 "file", "can't unlock file: %s (%d)",
-			 strerror(errno), errno);
 
 	if (unlikely(close(file->fd)))
 		glc_log(file->glc, GLC_ERROR, "file",
