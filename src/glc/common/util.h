@@ -17,7 +17,6 @@
 #define _UTIL_H
 
 #include <packetstream.h>
-#include <stdarg.h>
 #include <glc/common/glc.h>
 
 #ifdef __cplusplus

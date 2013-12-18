@@ -111,14 +111,11 @@ int glc_util_app_name(glc_t *glc, char **path, u_int32_t *path_size)
 int glc_util_utc_date(glc_t *glc, char **date, u_int32_t *date_size)
 {
 	time_t t = time(NULL);
-	char *strt = ctime(&t);
-
-	if (strt[strlen(strt)-1] == '\n')
-		strt[strlen(strt)-1] = '\0';
-
-	*date_size = strlen(strt) + 1;
-	*date = (char *) malloc(*date_size);
-	memcpy(*date, strt, *date_size);
+	*date = (char *)malloc(26);
+	ctime_r(&t,*date);
+	/* trim trailing line feed */
+	(*date)[24] = '\0';
+	*date_size = 25;
 
 	return 0;
 }
@@ -242,7 +239,7 @@ char *glc_util_format_filename(const char *fmt, unsigned int capture)
 		u_int32_t path_size;
 		glc_util_app_name(NULL, &path, &path_size);
 		char *p, *app = path;
-		while ((p = strstr(app, "/")) != NULL) {
+		if ((p = strrchr(app, '/')) != NULL) {
 			p++;
 			app = p;
 		}
@@ -263,16 +260,17 @@ char *glc_util_format_filename(const char *fmt, unsigned int capture)
 
 	/* time */
 	time_t t = time(NULL);
-	struct tm *tm = localtime(&t);
+	struct tm tm;
+	localtime_r(&t, &tm);
 
 	NUM_REPLACE("%pid%", "%d", getpid())
 	NUM_REPLACE("%capture%", "%u", capture)
-	NUM_REPLACE("%year%", "%04d", tm->tm_year + 1900)
-	NUM_REPLACE("%month%", "%02d", tm->tm_mon + 1)
-	NUM_REPLACE("%day%", "%02d", tm->tm_mday)
-	NUM_REPLACE("%hour%", "%02d", tm->tm_hour)
-	NUM_REPLACE("%min%", "%02d", tm->tm_min)
-	NUM_REPLACE("%sec%", "%02d", tm->tm_sec)
+	NUM_REPLACE("%year%", "%04d", tm.tm_year + 1900)
+	NUM_REPLACE("%month%", "%02d", tm.tm_mon + 1)
+	NUM_REPLACE("%day%", "%02d", tm.tm_mday)
+	NUM_REPLACE("%hour%", "%02d", tm.tm_hour)
+	NUM_REPLACE("%min%", "%02d", tm.tm_min)
+	NUM_REPLACE("%sec%", "%02d", tm.tm_sec)
 
 	return filename;
 }

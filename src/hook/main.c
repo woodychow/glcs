@@ -194,7 +194,7 @@ int open_stream()
 	if (unlikely((ret = file_open_target(mpriv.file, mpriv.stream_file))))
 		goto at_exit;
 	ret = file_write_info(mpriv.file, stream_info,
-				   info_name, info_date);
+				info_name, info_date);
 at_exit:
 	free(stream_info);
 	free(info_name);
@@ -207,15 +207,11 @@ int close_stream()
 {
 	int ret;
 
-	if (mpriv.stream_file != NULL) {
-		free(mpriv.stream_file);
-		mpriv.stream_file = NULL;
-	}
+	free(mpriv.stream_file);
+	mpriv.stream_file = NULL;
 
-	if ((ret = file_close_target(mpriv.file)))
-		return ret;
-
-	return 0;
+	ret = file_close_target(mpriv.file);
+	return ret;
 }
 
 void reload_stream_callback(void *arg)
