@@ -108,7 +108,6 @@ void init_glc()
 
 	if (unlikely((ret = init_buffers())))
 		goto err;
-
 	if (unlikely((ret = opengl_init(&mpriv.glc))))
 		goto err;
 	if (unlikely((ret = alsa_init(&mpriv.glc))))
@@ -221,13 +220,13 @@ void reload_stream_callback(void *arg)
 
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "reloading stream");
 
-	if ((ret = file_write_eof(mpriv.file)))
+	if (unlikely((ret = file_write_eof(mpriv.file))))
 		goto err;
-	if ((ret = close_stream()))
+	if (unlikely((ret = close_stream())))
 		goto err;
-	if ((ret = open_stream()))
+	if (unlikely((ret = open_stream())))
 		goto err;
-	if ((ret = file_write_state(mpriv.file)))
+	if (unlikely((ret = file_write_state(mpriv.file))))
 		goto err;
 
 	return;
@@ -260,13 +259,13 @@ int start_capture()
 		return EAGAIN;
 
 	if (!lib.running) {
-		if ((ret = start_glc()))
+		if (unlikely((ret = start_glc())))
 			goto err;
 	}
 
-	if ((ret = alsa_capture_start_all()))
+	if (unlikely((ret = alsa_capture_start_all())))
 		goto err;
-	if ((ret = opengl_capture_start()))
+	if (unlikely((ret = opengl_capture_start())))
 		goto err;
 
 	glc_state_time_add_diff(&mpriv.glc, glc_state_time(&mpriv.glc) - mpriv.stop_time);
@@ -287,9 +286,9 @@ int stop_capture()
 	if (!(lib.flags & LIB_CAPTURING))
 		return EAGAIN;
 
-	if ((ret = alsa_capture_stop_all()))
+	if (unlikely((ret = alsa_capture_stop_all())))
 		goto err;
-	if ((ret = opengl_capture_stop()))
+	if (unlikely((ret = opengl_capture_stop())))
 		goto err;
 
 	lib.flags &= ~LIB_CAPTURING;
@@ -316,19 +315,19 @@ int start_glc()
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "starting glc");
 
 	/* initialize file & write stream info */
-	if ((ret = file_init(&mpriv.file, &mpriv.glc)))
+	if (unlikely((ret = file_init(&mpriv.file, &mpriv.glc))))
 		return ret;
 	/* NOTE at the moment only reload is used as callback */
-	if ((ret = file_set_callback(mpriv.file, &reload_stream_callback)))
+	if (unlikely((ret = file_set_callback(mpriv.file, &reload_stream_callback))))
 		return ret;
-	if ((ret = open_stream()))
+	if (unlikely((ret = open_stream())))
 		return ret;
 
 	if (!(mpriv.flags & MAIN_COMPRESS_NONE)) {
-		if ((ret = file_write_process_start(mpriv.file, mpriv.compressed)))
+		if (unlikely((ret = file_write_process_start(mpriv.file, mpriv.compressed))))
 			return ret;
 
-		if ((ret = pack_init(&mpriv.pack, &mpriv.glc)))
+		if (unlikely((ret = pack_init(&mpriv.pack, &mpriv.glc))))
 			return ret;
 
 		if (mpriv.flags & MAIN_COMPRESS_QUICKLZ)
@@ -338,17 +337,18 @@ int start_glc()
 		else if (mpriv.flags & MAIN_COMPRESS_LZJB)
 			pack_set_compression(mpriv.pack, PACK_LZJB);
 
-		if ((ret = pack_process_start(mpriv.pack, mpriv.uncompressed, mpriv.compressed)))
+		if (unlikely((ret = pack_process_start(mpriv.pack, mpriv.uncompressed,
+						       mpriv.compressed))))
 			return ret;
 	} else {
 		glc_log(&mpriv.glc, GLC_WARNING, "main", "compression disabled");
-		if ((ret = file_write_process_start(mpriv.file, mpriv.uncompressed)))
+		if (unlikely((ret = file_write_process_start(mpriv.file, mpriv.uncompressed))))
 			return ret;
 	}
 
-	if ((ret = alsa_start(mpriv.uncompressed)))
+	if (unlikely((ret = alsa_start(mpriv.uncompressed))))
 		return ret;
-	if ((ret = opengl_start(mpriv.uncompressed)))
+	if (unlikely((ret = opengl_start(mpriv.uncompressed))))
 		return ret;
 
 	lib.running = 1;
@@ -400,9 +400,9 @@ void lib_close()
 
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "closing glc");
 
-	if ((ret = alsa_close()))
+	if (unlikely((ret = alsa_close())))
 		goto err;
-	if ((ret = opengl_close()))
+	if (unlikely((ret = opengl_close())))
 		goto err;
 
 	if (lib.running) {
@@ -494,22 +494,22 @@ void get_real_dlsym()
 {
 	eh_obj_t libdl;
 
-	if (eh_find_obj(&libdl, "*libdl.so*")) {
+	if (unlikely(eh_find_obj(&libdl, "*libdl.so*"))) {
 		fprintf(stderr, "(glc) libdl.so is not present in memory\n");
 		exit(1);
 	}
 
-	if (eh_find_sym(&libdl, "dlopen", (void *) &lib.dlopen)) {
+	if (unlikely(eh_find_sym(&libdl, "dlopen", (void *) &lib.dlopen))) {
 		fprintf(stderr, "(glc) can't get real dlopen()\n");
 		exit(1);
 	}
 
-	if (eh_find_sym(&libdl, "dlsym", (void *) &lib.dlsym)) {
+	if (unlikely(eh_find_sym(&libdl, "dlsym", (void *) &lib.dlsym))) {
 		fprintf(stderr, "(glc) can't get real dlsym()\n");
 		exit(1);
 	}
 
-	if (eh_find_sym(&libdl, "dlvsym", (void *) &lib.dlvsym)) {
+	if (unlikely(eh_find_sym(&libdl, "dlvsym", (void *) &lib.dlvsym))) {
 		fprintf(stderr, "(glc) can't get real dlvsym()\n");
 		exit(1);
 	}
@@ -521,12 +521,12 @@ void get_real___libc_dlsym()
 {
 	eh_obj_t libc;
 
-	if (eh_find_obj(&libc, "*libc.so*")) {
+	if (unlikely(eh_find_obj(&libc, "*libc.so*"))) {
 		fprintf(stderr, "(glc) libc.so is not present in memory\n");
 		exit(1);
 	}
 
-	if (eh_find_sym(&libc, "__libc_dlsym", (void *) &lib.__libc_dlsym)) {
+	if (unlikely(eh_find_sym(&libc, "__libc_dlsym", (void *) &lib.__libc_dlsym))) {
 		fprintf(stderr, "(glc) can't get real __libc_dlsym()\n");
 		exit(1);
 	}
@@ -613,7 +613,8 @@ void *__main_dlopen(const char *filename, int flag)
 	void *ret = lib.dlopen(filename, flag);
 
 	if ((ret != NULL) && (filename != NULL)) {
-		if ((!fnmatch("*libasound.so*", filename, 0)) | (!fnmatch("*libasound_module_*.so*", filename, 0)))
+		if ((!fnmatch("*libasound.so*", filename, 0)) ||
+		    (!fnmatch("*libasound_module_*.so*", filename, 0)))
 			alsa_unhook_so(filename); /* no audio stream duplication, thanks */
 	}
 

@@ -373,7 +373,7 @@ int gl_capture_destroy(gl_capture_t gl_capture)
 	while (gl_capture->video != NULL) {
 		del = gl_capture->video;
 		gl_capture->video = gl_capture->video->next;
-		
+
 		/* we might be in wrong thread */
 		if (del->indicator_list)
 			glDeleteLists(del->indicator_list, 1);
@@ -403,7 +403,7 @@ int gl_capture_get_geometry(gl_capture_t gl_capture, Display *dpy, Window win,
 
 	XGetGeometry(dpy, win, &rootWindow, &unused, &unused, w, h,
 	             (unsigned int *) &unused, (unsigned int *) &unused);
-	
+
 	return 0;
 }
 
@@ -456,7 +456,8 @@ int gl_capture_calc_geometry(gl_capture_t gl_capture, struct gl_capture_video_st
 
 	video->row = video->cw * gl_capture->bpp;
 	if (video->row % gl_capture->pack_alignment != 0)
-		video->row += gl_capture->pack_alignment - video->row % gl_capture->pack_alignment;
+		video->row += gl_capture->pack_alignment -
+			      video->row % gl_capture->pack_alignment;
 
 	return 0;
 }
@@ -484,9 +485,9 @@ int gl_capture_gen_indicator_list(gl_capture_t gl_capture,
 	int size;
 	if (!video->indicator_list)
 		video->indicator_list = glGenLists(1);
-	
+
 	glNewList(video->indicator_list, GL_COMPILE);
-	
+
 	size = video->h / 75;
 	if (size < 10)
 		size = 10;
@@ -515,10 +516,10 @@ int gl_capture_init_pbo(gl_capture_t gl_capture)
 
 	if (unlikely(gl_extensions == NULL))
 		return EINVAL;
-	
+
 	if (unlikely(!strstr(gl_extensions, "GL_ARB_pixel_buffer_object")))
 		return ENOTSUP;
-	
+
 	gl_capture->libGL_handle = dlopen("libGL.so.1", RTLD_LAZY);
 	if (unlikely(!gl_capture->libGL_handle))
 		return ENOTSUP;
@@ -527,7 +528,6 @@ int gl_capture_init_pbo(gl_capture_t gl_capture)
 		dlsym(gl_capture->libGL_handle, "glXGetProcAddressARB");
 	if (unlikely(!gl_capture->glXGetProcAddress))
 		return ENOTSUP;
-	
 	gl_capture->glGenBuffers =
 		(glGenBuffersProc)
 		gl_capture->glXGetProcAddress((const GLubyte *) "glGenBuffersARB");
@@ -643,7 +643,9 @@ int gl_capture_read_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_
 	return 0;
 }
 
-int gl_capture_get_video_stream(gl_capture_t gl_capture, struct gl_capture_video_stream_s **video, Display *dpy, GLXDrawable drawable)
+int gl_capture_get_video_stream(gl_capture_t gl_capture,
+				struct gl_capture_video_stream_s **video,
+				Display *dpy, GLXDrawable drawable)
 {
 	struct gl_capture_video_stream_s *fvideo;
 
@@ -713,10 +715,10 @@ int gl_capture_write_video_format_message(gl_capture_t gl_capture,
 		 "creating/updating configuration for video %d", video->id);
 
 	msg.type = GLC_MESSAGE_VIDEO_FORMAT;
-	format_msg.flags = video->flags;
+	format_msg.flags  = video->flags;
 	format_msg.format = video->format;
-	format_msg.id = video->id;
-	format_msg.width = video->cw;
+	format_msg.id     = video->id;
+	format_msg.width  = video->cw;
 	format_msg.height = video->ch;
 
 	ps_packet_open(&video->packet, PS_PACKET_WRITE);
@@ -783,6 +785,12 @@ int gl_capture_update_video_stream(gl_capture_t gl_capture,
 	return 0;
 }
 
+/*
+ * multithreading notes:
+ *
+ * This function could be accessed concurrently for different video streams, with
+ * the pair dpy,drawable identifying each stream.
+ */
 int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable)
 {
 	struct gl_capture_video_stream_s *video;
@@ -797,20 +805,11 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 
 	gl_capture_get_video_stream(gl_capture, &video, dpy, drawable);
 
-	msg.type = GLC_MESSAGE_VIDEO_FRAME;
-	pic.id = video->id;
-
 	/* get current time */
 	if (unlikely(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))
 		now = video->last + gl_capture->fps;
 	else
 		now = glc_state_time(gl_capture->glc);
-
-	/* if we are using PBO we will actually write previous picture to buffer */
-	if (gl_capture->flags & GL_CAPTURE_USE_PBO)
-		pic.time = video->pbo_time;
-	else
-		pic.time = now;
 
 	/* has gl_capture->fps microseconds elapsed since last capture */
 	if ((now - video->last < gl_capture->fps) &&
@@ -835,9 +834,15 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 				(PS_PACKET_WRITE) :
 				(PS_PACKET_WRITE | PS_PACKET_TRY))))
 		goto finish;
+
+	msg.type = GLC_MESSAGE_VIDEO_FRAME;
 	if (unlikely((ret = ps_packet_write(&video->packet,
 					    &msg, sizeof(glc_message_header_t)))))
 		goto cancel;
+
+	/* if we are using PBO we will actually write previous picture to buffer */
+	pic.time = (gl_capture->flags & GL_CAPTURE_USE_PBO)?video->pbo_time:now;
+	pic.id   = video->id;
 	if (unlikely((ret = ps_packet_write(&video->packet,
 					    &pic, sizeof(glc_video_frame_header_t)))))
 		goto cancel;

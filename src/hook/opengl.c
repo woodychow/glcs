@@ -26,7 +26,6 @@
 #include <glc/capture/gl_capture.h>
 
 #include "lib.h"
-#include "optimization.h"
 
 struct opengl_private_s {
 	glc_t *glc;
@@ -156,7 +155,7 @@ int opengl_start(ps_buffer_t *buffer)
 	opengl.buffer = buffer;
 
 	/* init unscaled buffer if it is needed */
-	if ((opengl.scale_factor != 1.0) | opengl.convert_ycbcr_420jpeg) {
+	if ((opengl.scale_factor != 1.0) || opengl.convert_ycbcr_420jpeg) {
 		/* if scaling is enabled, it is faster to capture as GL_BGRA */
 		gl_capture_set_pixel_format(opengl.gl_capture, GL_BGRA);
 
@@ -372,16 +371,18 @@ void __opengl_glFinish(void)
 		opengl_capture_current();
 }
 
-__PUBLIC GLXWindow glXCreateWindow(Display *dpy, GLXFBConfig config, Window win, const int *attrib_list)
+__PUBLIC GLXWindow glXCreateWindow(Display *dpy, GLXFBConfig config, Window win,
+				const int *attrib_list)
 {
 	return __opengl_glXCreateWindow(dpy, config, win, attrib_list);
 }
 
-GLXWindow __opengl_glXCreateWindow(Display *dpy, GLXFBConfig config, Window win, const int *attrib_list)
+GLXWindow __opengl_glXCreateWindow(Display *dpy, GLXFBConfig config, Window win,
+				const int *attrib_list)
 {
 	INIT_GLC
 
-	if (!opengl.glXCreateWindow) {
+	if (unlikely(!opengl.glXCreateWindow)) {
 		glc_log(opengl.glc, GLC_ERROR, "opengl",
 			"glXCreateWindow() not supported");
 		return (GLXWindow) 0;

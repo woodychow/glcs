@@ -82,7 +82,7 @@ int alsa_init(glc_t *glc)
 
 	/* initialize audio hook system */
 	if (alsa.capture) {
-		if ((ret = alsa_hook_init(&alsa.alsa_hook, alsa.glc)))
+		if (unlikely((ret = alsa_hook_init(&alsa.alsa_hook, alsa.glc))))
 			return ret;
 
 		alsa_hook_allow_skip(alsa.alsa_hook, 0);
@@ -156,7 +156,7 @@ int alsa_start(ps_buffer_t *buffer)
 		return EINVAL;
 
 	if (alsa.alsa_hook) {
-		if ((ret = alsa_hook_set_buffer(alsa.alsa_hook, buffer)))
+		if (unlikely((ret = alsa_hook_set_buffer(alsa.alsa_hook, buffer))))
 			return ret;
 	}
 
@@ -254,25 +254,25 @@ void get_real_alsa()
 		return;
 
 	alsa.libasound_handle = lib.dlopen("libasound.so.2", RTLD_LAZY);
-	if (!alsa.libasound_handle)
+	if (unlikely(!alsa.libasound_handle))
 		goto err;
 
 	alsa.snd_pcm_open =
 	  (int (*)(snd_pcm_t **, const char *, snd_pcm_stream_t, int))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_open");
-	if (!alsa.snd_pcm_open)
+	if (unlikely(!alsa.snd_pcm_open))
 		goto err;
 
 	alsa.snd_pcm_hw_params =
 	  (int (*)(snd_pcm_t *, snd_pcm_hw_params_t *))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_hw_params");
-	if (!alsa.snd_pcm_hw_params)
+	if (unlikely(!alsa.snd_pcm_hw_params))
 		goto err;
 
 	alsa.snd_pcm_open_lconf =
 	  (int (*)(snd_pcm_t **, const char *, snd_pcm_stream_t, int, snd_config_t *))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_open_lconf");
-	if (!alsa.snd_pcm_open_lconf)
+	if (unlikely(!alsa.snd_pcm_open_lconf))
 		goto err;
 
 	alsa.snd_pcm_close =
@@ -284,37 +284,38 @@ void get_real_alsa()
 	alsa.snd_pcm_writei =
 	  (snd_pcm_sframes_t (*)(snd_pcm_t *, const void *, snd_pcm_uframes_t))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_writei");
-	if (!alsa.snd_pcm_writei)
+	if (unlikely(!alsa.snd_pcm_writei))
 		goto err;
 
 	alsa.snd_pcm_writen =
 	  (snd_pcm_sframes_t (*)(snd_pcm_t *, void **, snd_pcm_uframes_t))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_writen");
-	if (!alsa.snd_pcm_writen)
+	if (unlikely(!alsa.snd_pcm_writen))
 		goto err;
 
 	alsa.snd_pcm_mmap_writei =
 	  (snd_pcm_sframes_t (*)(snd_pcm_t *, const void *, snd_pcm_uframes_t))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_mmap_writei");
-	if (!alsa.snd_pcm_writei)
+	if (unlikely(!alsa.snd_pcm_writei))
 		goto err;
 
 	alsa.snd_pcm_mmap_writen =
 	  (snd_pcm_sframes_t (*)(snd_pcm_t *, void **, snd_pcm_uframes_t))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_mmap_writen");
-	if (!alsa.snd_pcm_writen)
+	if (unlikely(!alsa.snd_pcm_writen))
 		goto err;
 
 	alsa.snd_pcm_mmap_begin =
-	  (int (*)(snd_pcm_t *, const snd_pcm_channel_area_t **, snd_pcm_uframes_t *, snd_pcm_uframes_t *))
+	  (int (*)(snd_pcm_t *, const snd_pcm_channel_area_t **, snd_pcm_uframes_t *,
+		   snd_pcm_uframes_t *))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_mmap_begin");
-	if (!alsa.snd_pcm_mmap_begin)
+	if (unlikely(!alsa.snd_pcm_mmap_begin))
 		goto err;
 
 	alsa.snd_pcm_mmap_commit =
 	  (snd_pcm_sframes_t (*)(snd_pcm_t *, snd_pcm_uframes_t, snd_pcm_uframes_t))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_mmap_commit");
-	if (!alsa.snd_pcm_mmap_commit)
+	if (unlikely(!alsa.snd_pcm_mmap_commit))
 		goto err;
 
 	alsa_loaded = 1;
@@ -332,7 +333,7 @@ int alsa_unhook_so(const char *soname)
 	if (!alsa_loaded)
 		get_real_alsa(); /* make sure we have real functions */
 
-	if ((ret = eh_find_obj(&so, soname)))
+	if (unlikely((ret = eh_find_obj(&so, soname))))
 		return ret;
 
 	/* don't look at 'elfhacks'... contains some serious black magic */

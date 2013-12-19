@@ -185,63 +185,63 @@ void get_real_x11()
 		get_real_dlsym();
 
 	x11.libX11_handle = lib.dlopen("libX11.so.6", RTLD_LAZY);
-	if (!x11.libX11_handle)
+	if (unlikely(!x11.libX11_handle))
 		goto err;
 
 	x11.XNextEvent =
 	  (int (*)(Display *, XEvent *))
 	    lib.dlsym(x11.libX11_handle, "XNextEvent");
-	if (!x11.XNextEvent)
+	if (unlikely(!x11.XNextEvent))
 		goto err;
 	x11.XPeekEvent =
 	  (int (*)(Display *, XEvent *))
 	    lib.dlsym(x11.libX11_handle, "XPeekEvent");
-	if (!x11.XPeekEvent)
+	if (unlikely(!x11.XPeekEvent))
 		goto err;
 	x11.XWindowEvent =
 	  (int (*)(Display *, Window, long, XEvent *))
 	    lib.dlsym(x11.libX11_handle, "XWindowEvent");
-	if (!x11.XWindowEvent)
+	if (unlikely(!x11.XWindowEvent))
 		goto err;
 	x11.XMaskEvent =
 	  (int (*)(Display *, long, XEvent *))
 	    lib.dlsym(x11.libX11_handle, "XMaskEvent");
-	if (!x11.XMaskEvent)
+	if (unlikely(!x11.XMaskEvent))
 		goto err;
 	x11.XCheckWindowEvent =
 	  (Bool (*)(Display *, Window, long, XEvent *))
 	    lib.dlsym(x11.libX11_handle, "XCheckWindowEvent");
-	if (!x11.XCheckWindowEvent)
+	if (unlikely(!x11.XCheckWindowEvent))
 		goto err;
 	x11.XCheckMaskEvent =
 	  (Bool (*)(Display *, long, XEvent *))
 	    lib.dlsym(x11.libX11_handle, "XCheckMaskEvent");
-	if (!x11.XCheckMaskEvent)
+	if (unlikely(!x11.XCheckMaskEvent))
 		goto err;
 	x11.XCheckTypedEvent =
 	  (Bool (*)(Display *, long, XEvent *))
 	    lib.dlsym(x11.libX11_handle, "XCheckTypedEvent");
-	if (!x11.XCheckTypedEvent)
+	if (unlikely(!x11.XCheckTypedEvent))
 		goto err;
 	x11.XCheckTypedWindowEvent =
 	  (Bool (*)(Display *, Window, int, XEvent *))
 	    lib.dlsym(x11.libX11_handle, "XCheckTypedWindowEvent");
-	if (!x11.XCheckTypedWindowEvent)
+	if (unlikely(!x11.XCheckTypedWindowEvent))
 		goto err;
 	x11.XIfEvent =
 	  (int (*)(Display *, XEvent *, Bool (*)(), XPointer))
 	    lib.dlsym(x11.libX11_handle, "XIfEvent");
-	if (!x11.XIfEvent)
+	if (unlikely(!x11.XIfEvent))
 		goto err;
 	x11.XCheckIfEvent =
 	  (Bool (*)(Display *, XEvent *, Bool (*)(), XPointer))
 	    lib.dlsym(x11.libX11_handle, "XCheckIfEvent");
-	if (!x11.XCheckIfEvent)
+	if (unlikely(!x11.XCheckIfEvent))
 		goto err;
 	x11.XPeekIfEvent =
 	  (int (*)(Display *, XEvent *, Bool (*)(), XPointer))
 	    lib.dlsym(x11.libX11_handle, "XPeekIfEvent");
-	if (!x11.XPeekIfEvent)
+	if (unlikely(!x11.XPeekIfEvent))
 		goto err;
 
 	x11.XF86VidModeSetGamma = NULL;
@@ -249,7 +249,7 @@ void get_real_x11()
 	if (x11.libXxf86vm_handle) {
 		x11.XF86VidModeSetGamma =
 		  (Bool (*)(Display *, int, XF86VidModeGamma *))
-		    lib.dlsym(x11.libX11_handle, "XF86VidModeGamma");
+		    lib.dlsym(x11.libX11_handle, "XF86VidModeSetGamma");
 	}
 
 	return;
