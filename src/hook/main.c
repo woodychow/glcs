@@ -68,9 +68,8 @@ __PRIVATE glc_lib_t lib = {NULL, /* dlopen */
 			   NULL, /* dlsym */
 			   NULL, /* dlvsym */
 			   NULL, /* __libc_dlsym */
-			   0, /* initialized */
 			   0, /* running */
-			   PTHREAD_MUTEX_INITIALIZER, /* init_lock */
+			   PTHREAD_ONCE_INIT, /* init_once */
 			   0, /* flags */
 			   };
 __PRIVATE struct main_private_s mpriv;
@@ -91,12 +90,6 @@ void init_glc()
 	mpriv.stop_time = 0;
 	mpriv.stream_file = NULL;
 	mpriv.stream_file_fmt = "%app%-%pid%-%capture%.glc";
-
-	if (unlikely((ret = pthread_mutex_lock(&lib.init_lock))))
-		goto err;
-
-	if (lib.initialized)
-		return;
 
 	/* init glc first */
 	glc_init(&mpriv.glc);
@@ -119,8 +112,6 @@ void init_glc()
 	mpriv.stop_time = glc_state_time(&mpriv.glc);
 
 	glc_util_log_info(&mpriv.glc);
-
-	lib.initialized = 1; /* we've technically done */
 
 	if (mpriv.flags & MAIN_START)
 		start_capture();
@@ -145,9 +136,6 @@ void init_glc()
 		sigaction(SIGTERM, &new_sighandler, &old_sighandler);
 		mpriv.sigterm_handler = old_sighandler.sa_handler;
 	}
-
-	if (unlikely((ret = pthread_mutex_unlock(&lib.init_lock))))
-		goto err;
 
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "glc initialized");
 	glc_log(&mpriv.glc, GLC_DEBUG, "main", "LD_PRELOAD=%s", getenv("LD_PRELOAD"));

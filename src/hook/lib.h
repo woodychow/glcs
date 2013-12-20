@@ -33,15 +33,12 @@ typedef struct {
 	void *(*dlsym)(void *, const char *);
 	void *(*dlvsym)(void *, const char *, const char *);
 	void *(*__libc_dlsym)(void *, const char *);
-	int initialized;
 	int running;
-	pthread_mutex_t init_lock;
+	pthread_once_t init_once;
 	glc_flags_t flags;
 } glc_lib_t;
 
-#define INIT_GLC \
-	if (unlikely(!lib.initialized)) \
-		init_glc();
+#define INIT_GLC pthread_once(&lib.init_once,init_glc)
 
 /**
  * \addtogroup main
