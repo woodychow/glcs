@@ -109,12 +109,12 @@ struct gl_capture_s {
 
 	void *libGL_handle;
 	GLXGetProcAddressProc glXGetProcAddress;
-	glGenBuffersProc glGenBuffers;
-	glDeleteBuffersProc glDeleteBuffers;
-	glBufferDataProc glBufferData;
-	glBindBufferProc glBindBuffer;
-	glMapBufferProc glMapBuffer;
-	glUnmapBufferProc glUnmapBuffer;
+	glGenBuffersProc      glGenBuffers;
+	glDeleteBuffersProc   glDeleteBuffers;
+	glBufferDataProc      glBufferData;
+	glBindBufferProc      glBindBuffer;
+	glMapBufferProc       glMapBuffer;
+	glUnmapBufferProc     glUnmapBuffer;
 };
 
 static int gl_capture_get_video_stream(gl_capture_t gl_capture,
@@ -595,9 +595,6 @@ int gl_capture_start_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream
 {
 	GLint binding;
 
-	if (unlikely(video->pbo_active))
-		return EAGAIN;
-
 	glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING_ARB, &binding);
 	glPushAttrib(GL_PIXEL_MODE_BIT);
 	glPushClientAttrib(GL_CLIENT_PIXEL_STORE_BIT);
@@ -610,8 +607,6 @@ int gl_capture_start_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream
 	glReadPixels(video->cx, video->cy, video->cw, video->ch,
 		gl_capture->format, GL_UNSIGNED_BYTE, NULL);
 
-	video->pbo_active = 1;
-
 	glPopClientAttrib();
 	glPopAttrib();
 	gl_capture->glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, binding);
@@ -623,9 +618,6 @@ int gl_capture_read_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_
 	GLvoid *buf;
 	GLint binding;
 	
-	if (unlikely(!video->pbo_active))
-		return EAGAIN;
-
 	glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING_ARB, &binding);
 
 	gl_capture->glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, video->pbo);
@@ -637,8 +629,6 @@ int gl_capture_read_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_
 
 	gl_capture->glUnmapBuffer(GL_PIXEL_PACK_BUFFER_ARB);
 
-	video->pbo_active = 0;
-	
 	gl_capture->glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, binding);
 	return 0;
 }
@@ -778,8 +768,8 @@ int gl_capture_update_video_stream(gl_capture_t gl_capture,
 		gl_capture_write_video_format_message(gl_capture, video, w, h);
 	}
 
-	if ((gl_capture->flags & GL_CAPTURE_DRAW_INDICATOR) &&
-	    (!video->indicator_list))
+	if (unlikely((gl_capture->flags & GL_CAPTURE_DRAW_INDICATOR) &&
+	    (!video->indicator_list)))
 		gl_capture_gen_indicator_list(gl_capture, video);
 
 	return 0;
@@ -835,6 +825,11 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 				(PS_PACKET_WRITE | PS_PACKET_TRY))))
 		goto finish;
 
+	if (unlikely((ret = ps_packet_setsize(&video->packet, video->row * video->ch
+						+ sizeof(glc_message_header_t)
+						+ sizeof(glc_video_frame_header_t)))))
+		goto cancel;
+
 	msg.type = GLC_MESSAGE_VIDEO_FRAME;
 	if (unlikely((ret = ps_packet_write(&video->packet,
 					    &msg, sizeof(glc_message_header_t)))))
@@ -848,12 +843,6 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 		goto cancel;
 
 	if (gl_capture->flags & GL_CAPTURE_USE_PBO) {
-		/* is this safe, what happens if this is called simultaneously? */
-		if (unlikely((ret = ps_packet_setsize(&video->packet, video->row * video->ch
-							+ sizeof(glc_message_header_t)
-							+ sizeof(glc_video_frame_header_t)))))
-			goto cancel;
-
 		if (unlikely((ret = gl_capture_read_pbo(gl_capture, video))))
 			goto cancel;
 
@@ -866,6 +855,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 
 		ret = gl_capture_get_pixels(gl_capture, video, dma);
 	}
+	ps_packet_close(&video->packet);
 
 	if ((gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
 	    !(gl_capture->flags & GL_CAPTURE_IGNORE_TIME)) {
@@ -889,10 +879,8 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 			video->last = now - 0.5 * gl_capture->fps;
 	}
 
-	ps_packet_close(&video->packet);
-
 finish:
-	if (ret != 0)
+	if (unlikely(ret != 0))
 		gl_capture_error(gl_capture, ret);
 
 	if (gl_capture->flags & GL_CAPTURE_DRAW_INDICATOR)

@@ -54,7 +54,7 @@ __PUBLIC int glc_util_info_fps(glc_t *glc, double fps);
  * \return 0 on success otherwise an error code
  */
 __PUBLIC int glc_util_info_create(glc_t *glc, glc_stream_info_t **stream_info,
-				  char **info_name, char **info_date);
+				  char **info_name, char *info_date);
 
 /**
  * \brief write version message into log

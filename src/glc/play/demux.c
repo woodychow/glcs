@@ -29,6 +29,7 @@
 #include "demux.h"
 #include "gl_play.h"
 #include "alsa_play.h"
+#include "optimization.h"
 
 struct demux_video_stream_s {
 	glc_stream_id_t id;
@@ -134,7 +135,7 @@ int demux_process_start(demux_t demux, ps_buffer_t *from)
 {
 	int ret;
 	pthread_attr_t attr;
-	if (demux->running)
+	if (unlikely(demux->running))
 		return EAGAIN;
 
 	demux->from = from;
@@ -142,7 +143,7 @@ int demux_process_start(demux_t demux, ps_buffer_t *from)
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-	if ((ret = pthread_create(&demux->thread, &attr, demux_thread, demux)))
+	if (unlikely((ret = pthread_create(&demux->thread, &attr, demux_thread, demux))))
 		return ret;
 	demux->running = 1;
 
@@ -152,7 +153,7 @@ int demux_process_start(demux_t demux, ps_buffer_t *from)
 
 int demux_process_wait(demux_t demux)
 {
-	if (!demux->running)
+	if (unlikely(!demux->running))
 		return EAGAIN;
 
 	pthread_join(demux->thread, NULL);
@@ -190,30 +191,30 @@ void *demux_thread(void *argptr)
 
 	ps_packet_t read;
 
-	if ((ret = ps_packet_init(&read, demux->from)))
+	if (unlikely((ret = ps_packet_init(&read, demux->from))))
 		goto err;
 
 	do {
-		if ((ret = ps_packet_open(&read, PS_PACKET_READ)))
+		if (unlikely((ret = ps_packet_open(&read, PS_PACKET_READ))))
 			goto err;
 
-		if ((ret = ps_packet_read(&read, &msg_hdr, sizeof(glc_message_header_t))))
+		if (unlikely((ret = ps_packet_read(&read, &msg_hdr, sizeof(glc_message_header_t)))))
 			goto err;
-		if ((ret = ps_packet_getsize(&read, &data_size)))
+		if (unlikely((ret = ps_packet_getsize(&read, &data_size))))
 			goto err;
 		data_size -= sizeof(glc_message_header_t);
-		if ((ret = ps_packet_dma(&read, (void *) &data, data_size, PS_ACCEPT_FAKE_DMA)))
+		if (unlikely((ret = ps_packet_dma(&read, (void *) &data, data_size, PS_ACCEPT_FAKE_DMA))))
 			goto err;
 
-		if ((msg_hdr.type == GLC_MESSAGE_CLOSE) |
-		    (msg_hdr.type == GLC_MESSAGE_VIDEO_FRAME) |
+		if ((msg_hdr.type == GLC_MESSAGE_CLOSE) ||
+		    (msg_hdr.type == GLC_MESSAGE_VIDEO_FRAME) ||
 		    (msg_hdr.type == GLC_MESSAGE_VIDEO_FORMAT)) {
 			/* handle msg to gl_play */
 			demux_video_stream_message(demux, &msg_hdr, data, data_size);
 		}
 
-		if ((msg_hdr.type == GLC_MESSAGE_CLOSE) |
-		    (msg_hdr.type == GLC_MESSAGE_AUDIO_FORMAT) |
+		if ((msg_hdr.type == GLC_MESSAGE_CLOSE) ||
+		    (msg_hdr.type == GLC_MESSAGE_AUDIO_FORMAT) ||
 		    (msg_hdr.type == GLC_MESSAGE_AUDIO_DATA)) {
 			/* handle msg to alsa_play */
 			demux_audio_stream_message(demux, &msg_hdr, data, data_size);
@@ -268,10 +269,10 @@ int demux_video_stream_message(demux_t demux, glc_message_header_t *header,
 		return EINVAL;
 
 	/* pass to single client */
-	if ((ret = demux_video_stream_get(demux, id, &video)))
+	if (unlikely((ret = demux_video_stream_get(demux, id, &video))))
 		return ret;
 
-	if ((ret = demux_video_stream_send(demux, video, header, data, size)))
+	if (unlikely((ret = demux_video_stream_send(demux, video, header, data, size))))
 		return ret;
 
 	return 0;
@@ -281,13 +282,13 @@ int demux_video_stream_send(demux_t demux, struct demux_video_stream_s *video,
 			 glc_message_header_t *header, char *data, size_t size)
 {
 	int ret;
-	if ((ret = ps_packet_open(&video->packet, PS_PACKET_WRITE)))
+	if (unlikely((ret = ps_packet_open(&video->packet, PS_PACKET_WRITE))))
 		goto err;
-	if ((ret = ps_packet_write(&video->packet, header, sizeof(glc_message_header_t))))
+	if (unlikely((ret = ps_packet_write(&video->packet, header, sizeof(glc_message_header_t)))))
 		goto err;
-	if ((ret = ps_packet_write(&video->packet, data, size)))
+	if (unlikely((ret = ps_packet_write(&video->packet, data, size))))
 		goto err;
-	if ((ret = ps_packet_close(&video->packet)))
+	if (unlikely((ret = ps_packet_close(&video->packet))))
 		goto err;
 err:
 	if (ret != EINTR)
@@ -333,16 +334,16 @@ int demux_video_stream_get(demux_t demux, glc_stream_id_t id, struct demux_video
 			calloc(1, sizeof(struct demux_video_stream_s));
 		(*video)->id = id;
 
-		if ((ret = ps_buffer_init(&(*video)->buffer, &demux->video_bufferattr)))
+		if (unlikely((ret = ps_buffer_init(&(*video)->buffer, &demux->video_bufferattr))))
 			return ret;
-		if ((ret = ps_packet_init(&(*video)->packet, &(*video)->buffer)))
+		if (unlikely((ret = ps_packet_init(&(*video)->packet, &(*video)->buffer))))
 			return ret;
 
-		if ((ret = gl_play_init(&(*video)->gl_play, demux->glc)))
+		if (unlikely((ret = gl_play_init(&(*video)->gl_play, demux->glc))))
 			return ret;
-		if ((ret = gl_play_set_stream_id((*video)->gl_play, (*video)->id)))
+		if (unlikely((ret = gl_play_set_stream_id((*video)->gl_play, (*video)->id))))
 			return ret;
-		if ((ret = gl_play_process_start((*video)->gl_play, &(*video)->buffer)))
+		if (unlikely((ret = gl_play_process_start((*video)->gl_play, &(*video)->buffer))))
 			return ret;
 		(*video)->running = 1;
 
@@ -357,7 +358,7 @@ int demux_video_stream_clean(demux_t demux, struct demux_video_stream_s *video)
 	int ret;
 	video->running = 0;
 
-	if ((ret = gl_play_process_wait(video->gl_play)))
+	if (unlikely((ret = gl_play_process_wait(video->gl_play))))
 		return ret;
 	gl_play_destroy(video->gl_play);
 
@@ -393,10 +394,10 @@ int demux_audio_stream_message(demux_t demux, glc_message_header_t *header,
 		return EINVAL;
 
 	/* pass to single client */
-	if ((ret = demux_audio_stream_get(demux, id, &audio)))
+	if (unlikely((ret = demux_audio_stream_get(demux, id, &audio))))
 		return ret;
 
-	if ((ret = demux_audio_stream_send(demux, audio, header, data, size)))
+	if (unlikely((ret = demux_audio_stream_send(demux, audio, header, data, size))))
 		return ret;
 
 	return 0;
@@ -437,21 +438,21 @@ int demux_audio_stream_get(demux_t demux, glc_stream_id_t id,
 			calloc(1, sizeof(struct demux_audio_stream_s));
 		(*audio)->id = id;
 
-		if ((ret = ps_buffer_init(&(*audio)->buffer, &demux->audio_bufferattr)))
+		if (unlikely((ret = ps_buffer_init(&(*audio)->buffer, &demux->audio_bufferattr))))
 			return ret;
-		if ((ret = ps_packet_init(&(*audio)->packet, &(*audio)->buffer)))
+		if (unlikely((ret = ps_packet_init(&(*audio)->packet, &(*audio)->buffer))))
 			return ret;
 
-		if ((ret = alsa_play_init(&(*audio)->alsa_play, demux->glc)))
+		if (unlikely((ret = alsa_play_init(&(*audio)->alsa_play, demux->glc))))
 			return ret;
-		if ((ret = alsa_play_set_stream_id((*audio)->alsa_play,
-							(*audio)->id)))
+		if (unlikely((ret = alsa_play_set_stream_id((*audio)->alsa_play,
+							(*audio)->id))))
 			return ret;
-		if ((ret = alsa_play_set_alsa_playback_device((*audio)->alsa_play,
-							       demux->alsa_playback_device)))
+		if (unlikely((ret = alsa_play_set_alsa_playback_device((*audio)->alsa_play,
+							       demux->alsa_playback_device))))
 			return ret;
-		if ((ret = alsa_play_process_start((*audio)->alsa_play,
-						    &(*audio)->buffer)))
+		if (unlikely((ret = alsa_play_process_start((*audio)->alsa_play,
+						    &(*audio)->buffer))))
 			return ret;
 		(*audio)->running = 1;
 
@@ -465,13 +466,13 @@ int demux_audio_stream_send(demux_t demux, struct demux_audio_stream_s *audio,
 			 glc_message_header_t *header, char *data, size_t size)
 {
 	int ret;
-	if ((ret = ps_packet_open(&audio->packet, PS_PACKET_WRITE)))
+	if (unlikely((ret = ps_packet_open(&audio->packet, PS_PACKET_WRITE))))
 		goto err;
-	if ((ret = ps_packet_write(&audio->packet, header, sizeof(glc_message_header_t))))
+	if (unlikely((ret = ps_packet_write(&audio->packet, header, sizeof(glc_message_header_t)))))
 		goto err;
-	if ((ret = ps_packet_write(&audio->packet, data, size)))
+	if (unlikely((ret = ps_packet_write(&audio->packet, data, size))))
 		goto err;
-	if ((ret = ps_packet_close(&audio->packet)))
+	if (unlikely((ret = ps_packet_close(&audio->packet))))
 		goto err;
 err:
 	if (ret != EINTR)
@@ -487,7 +488,7 @@ int demux_audio_stream_clean(demux_t demux, struct demux_audio_stream_s *audio)
 	int ret;
 	audio->running = 0;
 
-	if ((ret = alsa_play_process_wait(audio->alsa_play)))
+	if (unlikely((ret = alsa_play_process_wait(audio->alsa_play))))
 		return ret;
 	alsa_play_destroy(audio->alsa_play);
 

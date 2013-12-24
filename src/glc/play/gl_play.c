@@ -33,6 +33,7 @@
 #include <glc/common/thread.h>
 
 #include "gl_play.h"
+#include "optimization.h"
 
 #define GL_PLAY_RUNNING            0x1
 #define GL_PLAY_INITIALIZED        0x2
@@ -132,10 +133,10 @@ int gl_play_set_stream_id(gl_play_t gl_play, glc_stream_id_t ctx)
 int gl_play_process_start(gl_play_t gl_play, ps_buffer_t *from)
 {
 	int ret;
-	if (gl_play->flags & GL_PLAY_RUNNING)
+	if (unlikely(gl_play->flags & GL_PLAY_RUNNING))
 		return EAGAIN;
 
-	if ((ret = glc_thread_create(gl_play->glc, &gl_play->play_thread, from, NULL)))
+	if (unlikely((ret = glc_thread_create(gl_play->glc, &gl_play->play_thread, from, NULL))))
 		return ret;
 	gl_play->flags |= GL_PLAY_RUNNING;
 
@@ -144,7 +145,7 @@ int gl_play_process_start(gl_play_t gl_play, ps_buffer_t *from)
 
 int gl_play_process_wait(gl_play_t gl_play)
 {
-	if (!(gl_play->flags & GL_PLAY_RUNNING))
+	if (unlikely(!(gl_play->flags & GL_PLAY_RUNNING)))
 		return EAGAIN;
 
 	glc_thread_wait(&gl_play->play_thread);
@@ -160,7 +161,7 @@ int gl_play_thread_create_callback(void *ptr, void **threadptr)
 	if (!gl_play->dpy)
 		gl_play->dpy = XOpenDisplay(NULL);
 
-	if (!gl_play->dpy) {
+	if (unlikely(!gl_play->dpy)) {
 		glc_log(gl_play->glc, GLC_ERROR, "gl_play",
 			 "can't open display");
 		return EAGAIN;
@@ -183,7 +184,6 @@ void gl_play_finish_callback(void *ptr, int err)
 
 		glXDestroyContext(gl_play->dpy, gl_play->ctx);
 		XDestroyWindow(gl_play->dpy, gl_play->win);
-
 		XCloseDisplay(gl_play->dpy);
 	}
 

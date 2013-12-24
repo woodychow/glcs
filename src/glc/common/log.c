@@ -85,6 +85,11 @@ int glc_log_set_level(glc_t *glc, int level)
 	return 0;
 }
 
+int glc_log_get_level(glc_t *glc)
+{
+	return glc->log->level;
+}
+
 int glc_log_close(glc_t *glc)
 {
 	glc_log(glc, GLC_INFORMATION, "log", "log closed");

@@ -48,6 +48,7 @@ __PRIVATE int glc_log_destroy(glc_t *glc);
  * \return 0 on success otherwise an error code
  */
 __PUBLIC int glc_log_set_level(glc_t *glc, int level);
+__PUBLIC int glc_log_get_level(glc_t *glc);
 
 /**
  * \brief open file for log

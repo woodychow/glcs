@@ -75,7 +75,7 @@ int glc_util_info_fps(glc_t *glc, double fps)
 }
 
 int glc_util_info_create(glc_t *glc, glc_stream_info_t **stream_info,
-			 char **info_name, char **info_date)
+			 char **info_name, char *info_date)
 {
 	*stream_info = (glc_stream_info_t *) calloc(1, sizeof(glc_stream_info_t));
 
@@ -109,15 +109,16 @@ int glc_util_app_name(glc_t *glc, char **path, u_int32_t *path_size)
 	return 0;
 }
 
-int glc_util_utc_date(glc_t *glc, char **date, u_int32_t *date_size)
+/*
+ * date buffer must have space for at least 26 chars.
+ */
+int glc_util_utc_date(glc_t *glc, char *date, u_int32_t *date_size)
 {
 	time_t t = time(NULL);
-	*date = (char *)malloc(26);
-	ctime_r(&t,*date);
+	ctime_r(&t,date);
 	/* trim trailing line feed */
-	(*date)[24] = '\0';
+	date[24] = '\0';
 	*date_size = 25;
-
 	return 0;
 }
 
@@ -146,10 +147,11 @@ finish:
 
 int glc_util_log_info(glc_t *glc)
 {
-	char *name, *date;
+	char *name;
+	char date[26];
 	u_int32_t unused;
 	glc_util_app_name(glc, &name, &unused);
-	glc_util_utc_date(glc, &date, &unused);
+	glc_util_utc_date(glc,  date, &unused);
 
 	glc_log(glc, GLC_INFORMATION, "util", "system information\n" \
 		"  threads hint = %ld", glc_threads_hint(glc));
@@ -166,8 +168,6 @@ int glc_util_log_info(glc_t *glc)
 		glc->util->pid, name, date);
 
 	free(name);
-	free(date);
-
 	return 0;
 }
 

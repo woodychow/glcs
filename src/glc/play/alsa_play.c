@@ -28,6 +28,7 @@
 #include <glc/common/thread.h>
 
 #include "alsa_play.h"
+#include "optimization.h"
 
 struct alsa_play_s {
 	glc_t *glc;
@@ -112,7 +113,7 @@ int alsa_play_set_stream_id(alsa_play_t alsa_play, glc_stream_id_t id)
 int alsa_play_process_start(alsa_play_t alsa_play, ps_buffer_t *from)
 {
 	int ret;
-	if (alsa_play->running)
+	if (unlikely(alsa_play->running))
 		return EAGAIN;
 
 	if ((ret = glc_thread_create(alsa_play->glc, &alsa_play->thread, from, NULL)))
@@ -124,7 +125,7 @@ int alsa_play_process_start(alsa_play_t alsa_play, ps_buffer_t *from)
 
 int alsa_play_process_wait(alsa_play_t alsa_play)
 {
-	if (!alsa_play->running)
+	if (unlikely(!alsa_play->running))
 		return EAGAIN;
 
 	glc_thread_wait(&alsa_play->thread);
@@ -189,37 +190,37 @@ int alsa_play_hw(alsa_play_t alsa_play, glc_audio_format_message_t *fmt_msg)
 	else
 		access = SND_PCM_ACCESS_RW_NONINTERLEAVED;
 
-	if ((ret = snd_pcm_open(&alsa_play->pcm, alsa_play->device,
-				SND_PCM_STREAM_PLAYBACK, 0)) < 0)
+	if (unlikely((ret = snd_pcm_open(&alsa_play->pcm, alsa_play->device,
+				SND_PCM_STREAM_PLAYBACK, 0)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_malloc(&hw_params)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_malloc(&hw_params)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_any(alsa_play->pcm, hw_params)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_any(alsa_play->pcm, hw_params)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_set_access(alsa_play->pcm,
-						hw_params, access)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_set_access(alsa_play->pcm,
+						hw_params, access)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_set_format(alsa_play->pcm, hw_params,
-						glc_fmt_to_pcm_fmt(alsa_play->format))) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_set_format(alsa_play->pcm, hw_params,
+						glc_fmt_to_pcm_fmt(alsa_play->format))) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_set_channels(alsa_play->pcm, hw_params,
-						  alsa_play->channels)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_set_channels(alsa_play->pcm, hw_params,
+						  alsa_play->channels)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_set_rate(alsa_play->pcm, hw_params,
-					      alsa_play->rate, 0)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_set_rate(alsa_play->pcm, hw_params,
+					      alsa_play->rate, 0)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_get_buffer_size_max(hw_params,
-							 &max_buffer_size)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_get_buffer_size_max(hw_params,
+							 &max_buffer_size)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_set_buffer_size(alsa_play->pcm,
-						     hw_params, max_buffer_size)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_set_buffer_size(alsa_play->pcm,
+						     hw_params, max_buffer_size)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_get_periods_min(hw_params, &min_periods, &dir)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_get_periods_min(hw_params, &min_periods, &dir)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params_set_periods(alsa_play->pcm, hw_params,
-						 min_periods < 2 ? 2 : min_periods, dir)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params_set_periods(alsa_play->pcm, hw_params,
+						 min_periods < 2 ? 2 : min_periods, dir)) < 0))
 		goto err;
-	if ((ret = snd_pcm_hw_params(alsa_play->pcm, hw_params)) < 0)
+	if (unlikely((ret = snd_pcm_hw_params(alsa_play->pcm, hw_params)) < 0))
 		goto err;
 
 	alsa_play->bufs = (void **) malloc(sizeof(void *) * alsa_play->channels);
@@ -286,7 +287,7 @@ int alsa_play_play(alsa_play_t alsa_play, glc_audio_data_header_t *audio_hdr, ch
 		if (ret == 0)
 			break;
 
-		if ((ret == -EBUSY) | (ret == -EAGAIN))
+		if ((ret == -EBUSY) || (ret == -EAGAIN))
 			break;
 		else if (ret < 0) {
 			if ((ret = alsa_play_xrun(alsa_play, ret))) {
