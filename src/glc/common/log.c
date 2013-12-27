@@ -12,12 +12,10 @@
  */
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <pthread.h>
 
-#include "glc.h"
 #include "core.h"
 #include "log.h"
 #include "optimization.h"
@@ -88,6 +86,11 @@ int glc_log_set_level(glc_t *glc, int level)
 int glc_log_get_level(glc_t *glc)
 {
 	return glc->log->level;
+}
+
+FILE *glc_log_get_stream(glc_t *glc)
+{
+	return glc->log->stream;
 }
 
 int glc_log_close(glc_t *glc)

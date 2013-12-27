@@ -430,12 +430,10 @@ void signal_handler(int signum)
 	exit(0); /* may cause lots of damage... */
 }
 
-/*
- * TODO: Add STATS code.
- */
 void lib_close()
 {
 	int ret;
+	ps_stats_t stats;
 	/*
 	 There is a small possibility that a capture operation in another
 	 thread is still active. This should be called only in exit() or
@@ -463,10 +461,18 @@ void lib_close()
 	}
 
 	if (mpriv.compressed) {
+		if(!ps_buffer_stats(mpriv.compressed, &stats)) {
+			glc_log(&mpriv.glc, GLC_PERFORMANCE, "main", "compressed buffer stats:");
+			ps_stats_text(&stats, glc_log_get_stream(&mpriv.glc));
+		}
 		ps_buffer_destroy(mpriv.compressed);
 		free(mpriv.compressed);
 	}
 
+	if(!ps_buffer_stats(mpriv.uncompressed, &stats)) {
+		glc_log(&mpriv.glc, GLC_PERFORMANCE, "main", "uncompressed buffer stats:");
+		ps_stats_text(&stats, glc_log_get_stream(&mpriv.glc));
+	}
 	ps_buffer_destroy(mpriv.uncompressed);
 	free(mpriv.uncompressed);
 
