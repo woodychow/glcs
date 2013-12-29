@@ -293,7 +293,7 @@ int reload_stream()
 void increment_capture()
 {
 	mpriv.capture++;
-	mpriv.stop_time = 0;
+	mpriv.stop_time = glc_state_time(&mpriv.glc);
 }
 
 int start_capture()
@@ -451,6 +451,11 @@ void lib_close()
 		goto err;
 
 	if (lib.running) {
+	/*
+	 opengl_close() is inserting an eof message in the stream.
+	 as the downstream threads process that message, they will all
+	 exit.
+	 */
 		if (!(mpriv.flags & MAIN_COMPRESS_NONE)) {
 			pack_process_wait(mpriv.pack);
 			pack_destroy(mpriv.pack);
