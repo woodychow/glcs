@@ -108,9 +108,6 @@ void init_glc()
 	if (unlikely((ret = x11_init(&mpriv.glc))))
 		goto err;
 
-	/* get current time for correct timediff */
-	mpriv.stop_time = glc_state_time(&mpriv.glc);
-
 	glc_util_log_info(&mpriv.glc);
 
 	if (mpriv.flags & MAIN_START)
@@ -161,8 +158,11 @@ int load_environ()
 		glc_log_set_level(&mpriv.glc, atoi(getenv("GLC_LOG")));
 
 	if (getenv("GLC_LOG_FILE")) {
+		/* limit log file name to 1023 chars. */
 		log_file = malloc(1024);
-		snprintf(log_file, 1023, getenv("GLC_LOG_FILE"), getpid());
+		snprintf(log_file, 1024, getenv("GLC_LOG_FILE"), getpid());
+		log_file[1023] = '\0';
+
 		glc_log_open_file(&mpriv.glc, log_file);
 		free(log_file);
 		mpriv.flags |= MAIN_CUSTOM_LOG;
@@ -240,6 +240,15 @@ int open_stream()
 		goto at_exit;
 	ret = file_write_info(mpriv.file, stream_info,
 				info_name, info_date);
+
+	/*
+	 * reset state time
+	 *
+	 * This is done so for every saved file stream, the initial timestamp will be 0.
+	 */
+	glc_state_time_reset(&mpriv.glc);
+	mpriv.stop_time = 0;
+
 at_exit:
 	free(stream_info);
 	free(info_name);
@@ -293,7 +302,6 @@ int reload_stream()
 void increment_capture()
 {
 	mpriv.capture++;
-	mpriv.stop_time = glc_state_time(&mpriv.glc);
 }
 
 int start_capture()
@@ -307,12 +315,13 @@ int start_capture()
 			goto err;
 	}
 
+	glc_state_time_add_diff(&mpriv.glc, glc_state_time(&mpriv.glc) - mpriv.stop_time);
+
 	if (unlikely((ret = alsa_capture_start_all())))
 		goto err;
 	if (unlikely((ret = opengl_capture_start())))
 		goto err;
 
-	glc_state_time_add_diff(&mpriv.glc, glc_state_time(&mpriv.glc) - mpriv.stop_time);
 	lib.flags |= LIB_CAPTURING;
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "started capturing");
 

@@ -113,6 +113,8 @@ __PUBLIC glc_utime_t glc_state_time(glc_t *glc);
  */
 __PUBLIC int glc_state_time_add_diff(glc_t *glc, glc_stime_t diff);
 
+__PUBLIC void glc_state_time_reset(glc_t *glc);
+
 #ifdef __cplusplus
 }
 #endif

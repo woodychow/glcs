@@ -23,19 +23,18 @@
 
 struct glc_state_video_s {
 	glc_stream_id_t id;
-
 	struct glc_state_video_s *next;
 };
 
 struct glc_state_audio_s {
 	glc_stream_id_t id;
-
 	struct glc_state_audio_s *next;
 };
 
 struct glc_state_s {
 	pthread_rwlock_t state_rwlock;
 
+	/* lock maybe not needed */
 	pthread_rwlock_t time_rwlock;
 	glc_stime_t time_difference;
 
@@ -147,6 +146,13 @@ int glc_state_test(glc_t *glc, int flag)
 glc_utime_t glc_state_time(glc_t *glc)
 {
 	return glc_time(glc) - glc->state->time_difference;
+}
+
+void glc_state_time_reset(glc_t *glc)
+{
+	pthread_rwlock_wrlock(&glc->state->time_rwlock);
+	glc->state->time_difference = glc_time(glc);
+	pthread_rwlock_unlock(&glc->state->time_rwlock);
 }
 
 int glc_state_time_add_diff(glc_t *glc, glc_stime_t diff)
