@@ -47,7 +47,7 @@ struct alsa_capture_s {
 	unsigned int min_periods;
 	snd_pcm_format_t format;
 	ssize_t bytes_per_frame;
-	int rate_usec;
+	unsigned rate_usec;
 	size_t period_size_in_bytes;
 
 	snd_async_handler_t *async_handler;
@@ -238,7 +238,7 @@ int alsa_capture_open(alsa_capture_t alsa_capture)
 							&alsa_capture->channels)) < 0))
 		goto err;
 
-	alsa_capture->rate_usec = 1000000 / alsa_capture->rate;
+	alsa_capture->rate_usec = 1000000000u / alsa_capture->rate;
 
 	alsa_capture->flags = GLC_AUDIO_INTERLEAVED;
 
@@ -426,7 +426,7 @@ void *alsa_capture_thread(void *argptr)
 			time = glc_state_time(alsa_capture->glc);
 			delay_usec = avail * alsa_capture->rate_usec;
 
-			if (delay_usec < time)
+			if (unlikely(delay_usec < time))
 				time -= delay_usec;
 			hdr.time = time;
 			hdr.size = alsa_capture->period_size_in_bytes;

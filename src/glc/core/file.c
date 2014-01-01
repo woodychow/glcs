@@ -469,10 +469,18 @@ int file_close_source(file_t file)
 
 int file_test_stream_version(u_int32_t version)
 {
-	/* current version is always supported */
+	/*
+	 * current version is always supported.
+	 * The new addition to 0x05 version is that timestamp
+	 * are now in nanoseconds.
+	 * To not have to care about this difference all around the
+	 * code, we normalize timestamps in this module
+	 * by making sure that all outgoing timestamps are in
+	 * nanoseconds.
+	 */
 	if (likely(version == GLC_STREAM_VERSION)) {
 		return 0;
-	} else if (version == 0x03) {
+	} else if (version == 0x03 || version ==0x04) {
 		/*
 		 0.5.5 was last version to use 0x03.
 		 Only change between 0x03 and 0x04 is header and
@@ -583,12 +591,26 @@ int file_read(file_t file, ps_buffer_t *to)
 		if (unlikely((ret = ps_packet_write(&packet, &header,
 						sizeof(glc_message_header_t)))))
 			goto err;
-		if (unlikely((ret = ps_packet_dma(&packet, (void *) &dma,
+		if (unlikely((ret = ps_packet_dma(&packet, &(void *)dma,
 					packet_size, PS_ACCEPT_FAKE_DMA))))
 			goto err;
 
 		if (unlikely(fread_unlocked(dma, packet_size, 1, file->handle) != 1))
 			goto read_fail;
+
+		if (unlikely(file->stream_version < 0x05)) {
+			if (header.type == GLC_MESSAGE_VIDEO_FRAME ||
+			    header.type == GLC_MESSAGE_AUDIO_DATA) {
+				/*
+				 * because glc_video_frame_header_t and glc_audio_data_header_t
+				 * start with the same data members, it is ok use the same pointer
+				 * type for both types.
+				 */
+				glc_video_frame_header_t *data_hdr = (glc_video_frame_header_t *)dma;
+				/* transform uSec in nsec */
+				data_hdr->time *= 1000;
+			}
+		}
 
 		if (unlikely((ret = ps_packet_close(&packet))))
 			goto err;

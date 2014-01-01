@@ -49,7 +49,10 @@ __PUBLIC int glc_init(glc_t *glc);
 __PUBLIC int glc_destroy(glc_t *glc);
 
 /**
- * \brief current time in microseconds since initialization
+ * \brief current time in nanoseconds since initialization
+ *
+ * the 64 bits glc_utime_t is big enough to store over 500 years in
+ * nanoseconds so overflow is not an issue.
  * \param glc glc
  * \return time elapsed since initialization
  */

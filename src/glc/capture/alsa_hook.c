@@ -592,7 +592,8 @@ void *alsa_hook_mmap_pos(const snd_pcm_channel_area_t *area, snd_pcm_uframes_t o
 	return addr;
 }
 
-int alsa_hook_complex_to_interleaved(struct alsa_hook_stream_s *stream, const snd_pcm_channel_area_t *areas, snd_pcm_uframes_t offset, snd_pcm_uframes_t frames, char *to)
+int alsa_hook_complex_to_interleaved(struct alsa_hook_stream_s *stream, const snd_pcm_channel_area_t *areas,
+				snd_pcm_uframes_t offset, snd_pcm_uframes_t frames, char *to)
 {
 	/** \todo test this... :D */
 	/** \note this is quite expensive operation */

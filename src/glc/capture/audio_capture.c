@@ -244,7 +244,7 @@ int audio_capture_data(audio_capture_t audio_capture,
 		audio_capture->flags &= ~AUDIO_CAPTURE_CFG_CHANGED;
 	}
 
-	if (!(audio_capture->flags & AUDIO_CAPTURE_IGNORE_TIME))
+	if (likely(!(audio_capture->flags & AUDIO_CAPTURE_IGNORE_TIME)))
 		audio_capture->time = glc_state_time(audio_capture->glc);
 
 	msg_hdr.type = GLC_MESSAGE_AUDIO_DATA;
@@ -252,8 +252,8 @@ int audio_capture_data(audio_capture_t audio_capture,
 	audio_hdr.size = size;
 	audio_hdr.time = audio_capture->time;
 
-	if (audio_capture->flags & AUDIO_CAPTURE_IGNORE_TIME)
-		audio_capture->time += ((glc_utime_t) size * (glc_utime_t) 1000000) /
+	if (unlikely(audio_capture->flags & AUDIO_CAPTURE_IGNORE_TIME))
+		audio_capture->time += ((glc_utime_t) size * (glc_utime_t) 1000000000) /
 					(glc_utime_t) (audio_capture_frames_to_bytes(audio_capture, 1) *
 						       audio_capture->rate);
 

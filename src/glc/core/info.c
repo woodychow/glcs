@@ -169,11 +169,11 @@ void info_finish_callback(void *ptr, int err)
 		fprintf(info->stream, "video stream %d\n", video->id);
 		fprintf(info->stream, "  frames      = %lu\n", video->pictures);
 		fprintf(info->stream, "  fps         = %04.2f\n",
-		       (double) (video->pictures * 1000000) / (double) (info->time));
+		       (double) (video->pictures) / (double) (info->time/1000000000.0));
 		fprintf(info->stream, "  bytes       = ");
 		print_bytes(info->stream, video->bytes);
 		fprintf(info->stream, "  bps         = ");
-		print_bytes(info->stream, (video->bytes * 1000000) / info->time);
+		print_bytes(info->stream, (video->bytes) / (info->time/1000000000));
 
 		free(video);
 	}
@@ -185,11 +185,11 @@ void info_finish_callback(void *ptr, int err)
 		fprintf(info->stream, "audio stream %d\n", audio->id);
 		fprintf(info->stream, "  packets     = %lu\n", audio->packets);
 		fprintf(info->stream, "  pps         = %04.2f\n",
-		       (double) (audio->packets * 1000000) / (double) (info->time));
+		       (double) (audio->packets) / (double) (info->time/1000000000.0));
 		fprintf(info->stream, "  bytes       = ");
 		print_bytes(info->stream, audio->bytes);
 		fprintf(info->stream, "  bps         = ");
-		print_bytes(info->stream, (audio->bytes * 1000000) / info->time);
+		print_bytes(info->stream, (audio->bytes) / (info->time/1000000000));
 
 		free(audio);
 	}
@@ -348,12 +348,12 @@ void video_frame_info(info_t info, glc_video_frame_header_t *pic_header)
 	} else if (video->format == GLC_VIDEO_YCBCR_420JPEG)
 		video->bytes += (video->w * video->h * 3) / 2;
 
-	if ((info->level >= INFO_FPS) && (pic_header->time - video->fps_time >= 1000000)) {
+	if ((info->level >= INFO_FPS) && (pic_header->time - video->fps_time >= 1000000000)) {
 		print_time(info->stream, info->time);
 		fprintf(info->stream, "video %d: %04.2f fps\n", video->id,
-			(double) (video->fps * 1000000) / (double) (pic_header->time - video->last_fps_time));
+			(double) (video->fps * 1000000) / (double) (pic_header->time - video->last_fps_time)*1000);
 		video->last_fps_time = pic_header->time;
-		video->fps_time += 1000000;
+		video->fps_time += 1000000000;
 		video->fps = 0;
 	}
 }
@@ -450,7 +450,7 @@ void stream_info(info_t info)
 
 void print_time(FILE *stream, glc_utime_t time)
 {
-	fprintf(stream, "[%7.2fs] ", (double) time / 1000000.0);
+	fprintf(stream, "[%7.2fs] ", (double) time / 1000000000.0);
 }
 
 void print_bytes(FILE *stream, size_t bytes)

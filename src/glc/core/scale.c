@@ -483,7 +483,7 @@ int scale_video_format_message(scale_t scale,
 		video->rh = video->sh;
 	}
 
-	if ((video->format == GLC_VIDEO_BGRA) |
+	if ((video->format == GLC_VIDEO_BGRA) ||
 	    (video->format == GLC_VIDEO_BGR)) {
 		if (video->format == GLC_VIDEO_BGRA)
 			video->bpp = 4;
@@ -500,7 +500,7 @@ int scale_video_format_message(scale_t scale,
 
 	video->proc = NULL; /* do not try anything stupid... */
 
-	if ((video->format == GLC_VIDEO_BGR) |
+	if ((video->format == GLC_VIDEO_BGR) ||
 	    (video->format == GLC_VIDEO_BGRA)) {
 		if ((video->scale == 0.5) && !(scale->flags & SCALE_SIZE)) {
 			glc_log(scale->glc, GLC_DEBUG, "scale",
@@ -547,7 +547,7 @@ int scale_video_format_message(scale_t scale,
 				 "scaling Y'CbCr data to half-size (from %ux%u to %ux%u)",
 				 video->w, video->h, video->sw, video->sh);
 			video->proc = scale_ycbcr_half;
-		} else if ((video->rw != video->w) | (video->rh != video->h)) {
+		} else if ((video->rw != video->w) || (video->rh != video->h)) {
 			glc_log(scale->glc, GLC_DEBUG, "scale",
 				 "scaling Y'CbCr data with factor %f (from %ux%u to %ux%u)",
 				 video->scale, video->w, video->h, video->sw, video->sh);

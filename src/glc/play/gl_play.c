@@ -76,25 +76,25 @@ struct gl_play_s {
 	Atom net_wm_state_fullscreen_atom;
 };
 
-int gl_play_thread_create_callback(void *ptr, void **threadptr);
-int gl_play_read_callback(glc_thread_state_t *state);
-void gl_play_finish_callback(void *ptr, int err);
+static int gl_play_thread_create_callback(void *ptr, void **threadptr);
+static int gl_play_read_callback(glc_thread_state_t *state);
+static void gl_play_finish_callback(void *ptr, int err);
 
-int gl_play_create_ctx(gl_play_t gl_play);
-int gl_play_update_ctx(gl_play_t gl_play);
-int gl_play_update_viewport(gl_play_t gl_play, int x, int y,
+static int gl_play_create_ctx(gl_play_t gl_play);
+static int gl_play_update_ctx(gl_play_t gl_play);
+static int gl_play_update_viewport(gl_play_t gl_play, int x, int y,
 			    unsigned int w, unsigned int h);
-int gl_play_toggle_fullscreen(gl_play_t gl_play);
+static int gl_play_toggle_fullscreen(gl_play_t gl_play);
 
-int gl_play_init_texture_information(gl_play_t gl_play);
-int gl_play_create_textures(gl_play_t gl_play);
-int gl_play_destroy_textures(gl_play_t gl_play);
+static int gl_play_init_texture_information(gl_play_t gl_play);
+static int gl_play_create_textures(gl_play_t gl_play);
+static int gl_play_destroy_textures(gl_play_t gl_play);
 
-int gl_play_draw_video_frame_messageture(gl_play_t gl_play, char *from);
+static int gl_play_draw_video_frame_messageture(gl_play_t gl_play, char *from);
 
-int gl_play_handle_xevents(gl_play_t gl_play, glc_thread_state_t *state);
+static int gl_play_handle_xevents(gl_play_t gl_play, glc_thread_state_t *state);
 
-int gl_play_next_texture_size(gl_play_t gl_play, unsigned int number);
+static int gl_play_next_texture_size(gl_play_t gl_play, unsigned int number);
 
 int gl_play_init(gl_play_t *gl_play, glc_t *glc)
 {
@@ -102,8 +102,8 @@ int gl_play_init(gl_play_t *gl_play, glc_t *glc)
 
 	(*gl_play)->glc = glc;
 	(*gl_play)->id = 1;
-	(*gl_play)->sleep_threshold = 100; /* 100us */
-	(*gl_play)->skip_threshold = 25000; /* 25ms */
+	(*gl_play)->sleep_threshold = 100000; /* 100us */
+	(*gl_play)->skip_threshold = 25000000; /* 25ms */
 
 	(*gl_play)->play_thread.flags = GLC_THREAD_READ;
 	(*gl_play)->play_thread.ptr = *gl_play;
@@ -296,7 +296,8 @@ int gl_play_update_ctx(gl_play_t gl_play)
 	if (!(gl_play->flags & GL_PLAY_INITIALIZED))
 		return EINVAL;
 
-	snprintf(gl_play->name, sizeof(gl_play->name) - 1, "glc-play (ctx %d)", gl_play->id);
+	snprintf(gl_play->name, sizeof(gl_play->name), "glc-play (ctx %d)", gl_play->id);
+	gl_play->name[sizeof(gl_play->name)-1] = '\0';
 
 	XUnmapWindow(gl_play->dpy, gl_play->win);
 
@@ -642,7 +643,7 @@ int gl_play_read_callback(glc_thread_state_t *state)
 		if (pic_hdr->id != gl_play->id)
 			return 0;
 
-		if (!(gl_play->flags & GL_PLAY_INITIALIZED)) {
+		if (unlikely(!(gl_play->flags & GL_PLAY_INITIALIZED))) {
 			glc_log(gl_play->glc, GLC_ERROR, "gl_play",
 				"picture refers to uninitalized video stream %d",
 				pic_hdr->id);
@@ -663,8 +664,11 @@ int gl_play_read_callback(glc_thread_state_t *state)
 		glFinish();
 
 		time = glc_state_time(gl_play->glc);
-		if (pic_hdr->time > time + gl_play->sleep_threshold)
-			usleep(pic_hdr->time - time);
+		if (pic_hdr->time > time + gl_play->sleep_threshold) {
+			struct timespec ts = { .ts_sec  = (pic_hdr->time - time)/1000000000,
+					       .ts_nsec = (pic_hdr->time - time)%1000000000 };
+			nanosleep(&ts,NULL);
+		}
 
 		glXSwapBuffers(gl_play->dpy, gl_play->win);
 	}

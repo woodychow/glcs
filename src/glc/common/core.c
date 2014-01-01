@@ -24,7 +24,7 @@
 #include "optimization.h"
 
 struct glc_core_s {
-	struct timeval init_time;
+	struct timespec init_time;
 	long int threads_hint;
 };
 
@@ -45,7 +45,7 @@ int glc_init(glc_t *glc)
 
 	glc->core = (glc_core_t) calloc(1, sizeof(struct glc_core_s));
 
-	gettimeofday(&glc->core->init_time, NULL);
+	clock_getttime(CLOCK_MONOTONIC, &glc->core->init_time);
 	glc->core->threads_hint = sysconf(_SC_NPROCESSORS_ONLN);
 
 	if (unlikely((ret = glc_log_init(glc))))
@@ -72,19 +72,19 @@ int glc_destroy(glc_t *glc)
 
 glc_utime_t glc_time(glc_t *glc)
 {
-	struct timeval tv;
+	struct timespec ts;
 
-	gettimeofday(&tv, NULL);
+	clock_gettime(CLOCK_MONOTONIC, &ts);
 
-	tv.tv_sec -= glc->core->init_time.tv_sec;
-	tv.tv_usec -= glc->core->init_time.tv_usec;
+	ts.tv_sec -= glc->core->init_time.tv_sec;
+	ts.tv_nsec -= glc->core->init_time.tv_nsec;
 
-	if (tv.tv_usec < 0) {
-		tv.tv_sec--;
-		tv.tv_usec += 1000000;
+	if (ts.tv_usec < 0) {
+		ts.tv_sec--;
+		ts.tv_nsec += 1000000000;
 	}
 
-	return (glc_utime_t) tv.tv_sec * (glc_utime_t) 1000000 + (glc_utime_t) tv.tv_usec;
+	return (glc_utime_t) ts.tv_sec * (glc_utime_t) 1000000000 + (glc_utime_t) ts.tv_usec;
 }
 
 long int glc_threads_hint(glc_t *glc)

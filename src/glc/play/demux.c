@@ -69,26 +69,26 @@ struct demux_s {
 	struct demux_audio_stream_s *audio;
 };
 
-int demux_close(demux_t demux);
-void *demux_thread(void *argptr);
+static int demux_close(demux_t demux);
+static void *demux_thread(void *argptr);
 
-int demux_video_stream_message(demux_t demux, glc_message_header_t *header,
+static int demux_video_stream_message(demux_t demux, glc_message_header_t *header,
 			       char *data, size_t size);
-int demux_video_stream_get(demux_t demux, glc_stream_id_t id,
+static int demux_video_stream_get(demux_t demux, glc_stream_id_t id,
 			   struct demux_video_stream_s **video);
-int demux_video_stream_send(demux_t demux, struct demux_video_stream_s *video,
+static int demux_video_stream_send(demux_t demux, struct demux_video_stream_s *video,
 			    glc_message_header_t *header, char *data, size_t size);
-int demux_video_stream_close(demux_t demux);
-int demux_video_stream_clean(demux_t demux, struct demux_video_stream_s *video);
+static int demux_video_stream_close(demux_t demux);
+static int demux_video_stream_clean(demux_t demux, struct demux_video_stream_s *video);
 
-int demux_audio_stream_message(demux_t demux, glc_message_header_t *header,
+static int demux_audio_stream_message(demux_t demux, glc_message_header_t *header,
 			       char *data, size_t size);
-int demux_audio_stream_get(demux_t demux, glc_stream_id_t id,
+static int demux_audio_stream_get(demux_t demux, glc_stream_id_t id,
 			   struct demux_audio_stream_s **audio);
-int demux_audio_stream_send(demux_t demux, struct demux_audio_stream_s *audio,
+static int demux_audio_stream_send(demux_t demux, struct demux_audio_stream_s *audio,
 			 glc_message_header_t *header, char *data, size_t size);
-int demux_audio_stream_close(demux_t demux);
-int demux_audio_stream_clean(demux_t demux, struct demux_audio_stream_s *audio);
+static int demux_audio_stream_close(demux_t demux);
+static int demux_audio_stream_clean(demux_t demux, struct demux_audio_stream_s *audio);
 
 int demux_init(demux_t *demux, glc_t *glc)
 {
@@ -142,13 +142,13 @@ int demux_process_start(demux_t demux, ps_buffer_t *from)
 
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
-	if (unlikely((ret = pthread_create(&demux->thread, &attr, demux_thread, demux))))
-		return ret;
-	demux->running = 1;
-
+	ret = pthread_create(&demux->thread, &attr, demux_thread, demux);
 	pthread_attr_destroy(&attr);
-	return 0;
+
+	if (likely(!ret))
+		demux->running = 1;
+
+	return ret;
 }
 
 int demux_process_wait(demux_t demux)

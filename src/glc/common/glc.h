@@ -66,13 +66,13 @@ extern "C" {
  */
 
 /** stream version */
-#define GLC_STREAM_VERSION                  0x4
+#define GLC_STREAM_VERSION                  0x5
 /** file signature = "GLC" */
 #define GLC_SIGNATURE                0x00434c47
 
-/** unsigned time in microseconds */
+/** unsigned time in nanoseconds */
 typedef u_int64_t glc_utime_t;
-/** signed time in microseconds */
+/** signed time in nanoseconds */
 typedef int64_t glc_stime_t;
 
 /** stream identifier type */

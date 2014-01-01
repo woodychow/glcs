@@ -160,7 +160,7 @@ int gl_capture_init(gl_capture_t *gl_capture, glc_t *glc)
 	*gl_capture = (gl_capture_t) calloc(1, sizeof(struct gl_capture_s));
 
 	(*gl_capture)->glc = glc;
-	(*gl_capture)->fps = 1000000 / 30;		/* default fps is 30 */
+	(*gl_capture)->fps = 1000000000 / 30;		/* default fps is 30 */
 	(*gl_capture)->pack_alignment = 8;		/* read as dword aligned by default */
 	(*gl_capture)->format = GL_BGRA;		/* capture as BGRA data by default */
 	(*gl_capture)->bpp = 4;				/* since we use BGRA */
@@ -204,7 +204,7 @@ int gl_capture_set_fps(gl_capture_t gl_capture, double fps)
 	if (unlikely(fps <= 0))
 		return EINVAL;
 
-	gl_capture->fps = 1000000 / fps;
+	gl_capture->fps = 1000000000 / fps;
 	glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
 		 "capturing at %f fps", fps);
 

@@ -51,9 +51,7 @@ void *copy_thread(void *argptr);
 int copy_init(copy_t *copy, glc_t *glc)
 {
 	*copy = (copy_t) calloc(1, sizeof(struct copy_s));
-
 	(*copy)->glc = glc;
-
 	return 0;
 }
 
