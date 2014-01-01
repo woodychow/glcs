@@ -46,7 +46,27 @@ int glc_init(glc_t *glc)
 	glc->core = (glc_core_t) calloc(1, sizeof(struct glc_core_s));
 
 	clock_getttime(CLOCK_MONOTONIC, &glc->core->init_time);
-	glc->core->threads_hint = sysconf(_SC_NPROCESSORS_ONLN);
+
+	/*
+	 * threads_hint sets the number of threads used in filters
+	 * for modifying the video during playback. I see at least 2
+	 * problems with that:
+	 *
+	 * 1. For the play pipeline, you end up with 4*number of cores threads.
+	 *    IMHO, it is not a good practice to have much more threads than
+	 *    you have cores. This is especially true for CPU bounded processing
+	 *    like what you find in the glc filters.
+	 * 2. I see no synchronization to ensure that packets processed in parallel
+	 *    in a given pipeline stage are put back in the correct order in the next
+	 *    ring buffer. I have experienced playback freeze and I suspect this being
+	 *    the cause:
+	 *
+	 *    In gl_play.c, you have pic_hdr->time > time + gl_play->sleep_threshold
+	 *    You end up with an underflow if this condition is true and
+	 *    pic_hdr->time < time.
+	 */
+//	glc->core->threads_hint = sysconf(_SC_NPROCESSORS_ONLN);
+	glc->core->threads_hint = 1;
 
 	if (unlikely((ret = glc_log_init(glc))))
 		return ret;
