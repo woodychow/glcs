@@ -84,6 +84,11 @@ struct gl_capture_video_stream_s {
 
 	GLuint pbo;
 	int pbo_active;
+
+	/* stats related vars */
+	unsigned num_frames;
+	uint64_t capture_time_ns;
+	int      gather_stats;
 };
 
 struct gl_capture_s {
@@ -201,7 +206,7 @@ int gl_capture_set_read_buffer(gl_capture_t gl_capture, GLenum buffer)
 
 int gl_capture_set_fps(gl_capture_t gl_capture, double fps)
 {
-	if (unlikely(fps <= 0))
+	if (unlikely(fps <= 0.0))
 		return EINVAL;
 
 	gl_capture->fps = 1000000000 / fps;
@@ -374,6 +379,10 @@ int gl_capture_destroy(gl_capture_t gl_capture)
 		del = gl_capture->video;
 		gl_capture->video = gl_capture->video->next;
 
+		glc_log(gl_capture->glc, GLC_PERFORMANCE, "gl_capture",
+			"captured %u frames in %llu nsec",
+			del->num_frames, del->capture_time_ns);
+
 		/* we might be in wrong thread */
 		if (del->indicator_list)
 			glDeleteLists(del->indicator_list, 1);
@@ -458,7 +467,6 @@ int gl_capture_calc_geometry(gl_capture_t gl_capture, struct gl_capture_video_st
 	if (video->row % gl_capture->pack_alignment != 0)
 		video->row += gl_capture->pack_alignment -
 			      video->row % gl_capture->pack_alignment;
-
 	return 0;
 }
 
@@ -653,8 +661,9 @@ int gl_capture_get_video_stream(gl_capture_t gl_capture,
 		fvideo = (struct gl_capture_video_stream_s *)
 			calloc(1, sizeof(struct gl_capture_video_stream_s));
 
-		fvideo->dpy = dpy;
-		fvideo->drawable = drawable;
+		fvideo->dpy          = dpy;
+		fvideo->drawable     = drawable;
+		fvideo->gather_stats = glc_log_get_level(gl_capture->glc) >= GLC_PERFORMANCE;
 		ps_packet_init(&fvideo->packet, gl_capture->to);
 
 		glc_state_video_new(gl_capture->glc, &fvideo->id, &fvideo->state_video);
@@ -662,7 +671,7 @@ int gl_capture_get_video_stream(gl_capture_t gl_capture,
 		/* these functions need to be thread-safe */
 		pthread_rwlock_wrlock(&gl_capture->videolist_lock);
 
-		fvideo->next = gl_capture->video;
+		fvideo->next      = gl_capture->video;
 		gl_capture->video = fvideo;
 
 		pthread_rwlock_unlock(&gl_capture->videolist_lock);
@@ -787,6 +796,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	glc_message_header_t msg;
 	glc_video_frame_header_t pic;
 	glc_utime_t now;
+	glc_utime_t before_capture,after_capture;
 	char *dma;
 	int ret = 0;
 
@@ -842,6 +852,8 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 					    &pic, sizeof(glc_video_frame_header_t)))))
 		goto cancel;
 
+	if (video->gather_stats)
+		before_capture = glc_state_time(gl_capture->glc);
 	if (gl_capture->flags & GL_CAPTURE_USE_PBO) {
 		if (unlikely((ret = gl_capture_read_pbo(gl_capture, video))))
 			goto cancel;
@@ -855,14 +867,22 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 
 		ret = gl_capture_get_pixels(gl_capture, video, dma);
 	}
+	if (video->gather_stats) {
+		after_capture = glc_state_time(gl_capture->glc);
+		video->capture_time_ns += after_capture - before_capture;
+	}
+
 	ps_packet_close(&video->packet);
+	video->num_frames++;
+	now = glc_state_time(gl_capture->glc);
 
-	if ((gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
-	    !(gl_capture->flags & GL_CAPTURE_IGNORE_TIME)) {
-		now = glc_state_time(gl_capture->glc);
-
-		if (now - video->last < gl_capture->fps)
-			usleep(gl_capture->fps + video->last - now);
+	if (unlikeky((gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
+	    !(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))) {
+		if (now - video->last < gl_capture->fps) {
+			struct timespec ts = { .ts_sec  = (gl_capture->fps + video->last - now)/1000000000,
+					       .ts_nsec = (gl_capture->fps + video->last - now)%1000000000 };
+			nanosleep(&ts,NULL);
+		}
 	}
 
 	/* increment by 1/fps seconds */
@@ -873,8 +893,6 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	 to grow unlimited.
 	*/
 	if (likely(!(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))) {
-		now = glc_state_time(gl_capture->glc);
-
 		if (now - video->last > gl_capture->fps) /* reasonable choice? */
 			video->last = now - 0.5 * gl_capture->fps;
 	}
