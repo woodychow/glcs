@@ -106,6 +106,8 @@ __PUBLIC char *glc_util_str_replace(const char *str, const char *find, const cha
  */
 __PUBLIC char *glc_util_format_filename(const char *fmt, unsigned int capture);
 
+__PUBLIC int glc_util_block_signals(void);
+
 #ifdef __cplusplus
 }
 #endif

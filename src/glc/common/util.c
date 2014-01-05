@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <time.h>
+#include <signal.h>
 
 #include "glc.h"
 #include "core.h"
@@ -275,6 +276,34 @@ char *glc_util_format_filename(const char *fmt, unsigned int capture)
 	NUM_REPLACE("%sec%", "%02d", tm.tm_sec)
 
 	return filename;
+}
+
+/*
+ * Signals should be handled by the main thread, nowhere else.
+ * I'm using POSIX signal interface here, until someone tells me
+ * that I should use signal/sigset instead
+ *
+ */
+int glc_util_block_signals(void)
+{
+	sigset_t ss;
+
+	sigfillset(&ss);
+
+	/* These ones we want */
+	sigdelset(&ss, SIGKILL);
+	sigdelset(&ss, SIGSTOP);
+	sigdelset(&ss, SIGSEGV);
+	sigdelset(&ss, SIGCHLD);
+	sigdelset(&ss, SIGBUS);
+	sigdelset(&ss, SIGALRM);
+	sigdelset(&ss, SIGPROF);
+	sigdelset(&ss, SIGVTALRM);
+#ifndef NODEBUG
+	// Don't block SIGINT in debug so we can always break in the debugger
+	sigdelset(&ss, SIGINT);
+#endif
+        return pthread_sigmask(SIG_BLOCK, &ss, NULL);
 }
 
 /**  \} */

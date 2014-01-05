@@ -243,7 +243,6 @@ int open_stream()
 
 	/*
 	 * reset state time
-	 *
 	 * This is done so for every saved file stream, the initial timestamp will be 0.
 	 */
 	glc_state_time_reset(&mpriv.glc);
