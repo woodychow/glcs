@@ -144,7 +144,6 @@ int alsa_capture_set_channels(alsa_capture_t alsa_capture, unsigned int channels
 int alsa_capture_start(alsa_capture_t alsa_capture)
 {
 	int ret;
-	pthread_attr_t attr;
 	if (unlikely(alsa_capture == NULL))
 		return EINVAL;
 
@@ -152,11 +151,8 @@ int alsa_capture_start(alsa_capture_t alsa_capture)
 		return EAGAIN;
 
 	if (unlikely(!alsa_capture->thread_running)) {
-		pthread_attr_init(&attr);
-		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 		pthread_create(&alsa_capture->capture_thread, &attr,
 				alsa_capture_thread, (void *) alsa_capture);
-		pthread_attr_destroy(&attr);
 		alsa_capture->thread_running = 1;
 	}
 
@@ -356,8 +352,7 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 	free(formats);
 	return 0;
 err:
-	if (formats)
-		free(formats);
+	free(formats);
 	return -ret;
 }
 
