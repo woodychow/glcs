@@ -206,14 +206,12 @@ int alsa_capture_open(alsa_capture_t alsa_capture)
 		goto err;
 
 	/* init hw */
-	if (unlikely((ret = snd_pcm_hw_params_malloc(&hw_params)) < )0)
-		goto err;
+	snd_pcm_hw_params_alloca(&hw_params);
 	if (unlikely((ret = -alsa_capture_init_hw(alsa_capture, hw_params))))
 		goto err;
 
 	/* set software params */
-	if (unlikely((ret = snd_pcm_sw_params_malloc(&sw_params)) < 0))
-		goto err;
+	snd_pcm_sw_params_alloca(&sw_params);
 	if (unlikely((ret = -alsa_capture_init_sw(alsa_capture, sw_params))))
 		goto err;
 
@@ -259,9 +257,6 @@ int alsa_capture_open(alsa_capture_t alsa_capture)
 	ps_packet_close(&packet);
 	ps_packet_destroy(&packet);
 
-	snd_pcm_hw_params_free(hw_params);
-	snd_pcm_sw_params_free(sw_params);
-
 	/* init callback */
 	if (unlikely((ret = snd_async_add_pcm_handler(&alsa_capture->async_handler,
 					alsa_capture->pcm,
@@ -276,11 +271,6 @@ int alsa_capture_open(alsa_capture_t alsa_capture)
 
 	return 0;
 err:
-	if (hw_params)
-		snd_pcm_hw_params_free(hw_params);
-	if (sw_params)
-		snd_pcm_sw_params_free(sw_params);
-
 	glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
 		 "initialization failed: %s", snd_strerror(ret));
 	return -ret;
@@ -305,16 +295,17 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 	snd_pcm_format_mask_t *formats = NULL;
 	snd_pcm_uframes_t max_buffer_size;
 	unsigned int min_periods;
-	int dir, ret = 0;
+	int dir, ret;
 
 	if (unlikely((ret = snd_pcm_hw_params_any(alsa_capture->pcm, hw_params)) < 0))
 		goto err;
 
+	/* XXX: Possible enhancement could be to use MMAP access */
 	if (unlikely((ret = snd_pcm_hw_params_set_access(alsa_capture->pcm,
 					hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0))
 		goto err;
 
-	formats = (snd_pcm_format_mask_t *) malloc(snd_pcm_format_mask_sizeof());
+	formats = (snd_pcm_format_mask_t *) alloca(snd_pcm_format_mask_sizeof());
 	snd_pcm_format_mask_none(formats);
 	snd_pcm_format_mask_set(formats, SND_PCM_FORMAT_S16_LE);
 	snd_pcm_format_mask_set(formats, SND_PCM_FORMAT_S24_LE);
@@ -348,24 +339,18 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 
 	if (unlikely((ret = snd_pcm_hw_params(alsa_capture->pcm, hw_params)) < 0))
 		goto err;
-
-	free(formats);
-	return 0;
 err:
-	free(formats);
 	return -ret;
 }
 
 int alsa_capture_init_sw(alsa_capture_t alsa_capture, snd_pcm_sw_params_t *sw_params)
 {
-	int ret = 0;
+	int ret;
 
 	if (unlikely((ret = snd_pcm_sw_params_current(alsa_capture->pcm, sw_params)) < 0))
 		goto err;
 	if (unlikely((ret = snd_pcm_sw_params(alsa_capture->pcm, sw_params))))
 		goto err;
-
-	return 0;
 err:
 	return -ret;
 }
@@ -482,6 +467,9 @@ cancel:
 	return NULL;
 }
 
+/*
+ * The EINTR error is handled outside this function.
+ */
 int alsa_capture_xrun(alsa_capture_t alsa_capture, int err)
 {
 	glc_log(alsa_capture->glc, GLC_DEBUG, "alsa_capture", "xrun");
