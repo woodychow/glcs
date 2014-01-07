@@ -472,7 +472,7 @@ cancel:
  */
 int alsa_capture_xrun(alsa_capture_t alsa_capture, int err)
 {
-	glc_log(alsa_capture->glc, GLC_DEBUG, "alsa_capture", "xrun");
+	glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture", "overrun");
 
 	if (err == -EPIPE) {
 		if ((err = snd_pcm_prepare(alsa_capture->pcm)) < 0)
