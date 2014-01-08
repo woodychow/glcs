@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <time.h>
 #include <signal.h>
+#include <fcntl.h>
 
 #include "glc.h"
 #include "core.h"
@@ -304,6 +305,31 @@ int glc_util_block_signals(void)
 	sigdelset(&ss, SIGINT);
 #endif
         return pthread_sigmask(SIG_BLOCK, &ss, NULL);
+}
+
+int glc_util_setflag( int fd, int flag )
+{
+	int ret;
+	if (unlikely((val = fcntl(fd, F_GETFL, 0)) < 0))
+		return val;
+	val |= flag;
+	val = fcntl(fd, F_SETFL, val);
+	return val;
+}
+
+int glc_util_clearflag( int fd, int flag )
+{
+	int val;
+	if (unlikely((val = fcntl(fd, F_GETFL, 0)) < 0))
+		return val;
+	val &= ~flag;
+	val = fcntl(fd, F_SETFL, val);
+	return val;
+}
+
+int glc_util_set_nonblocking(int fd)
+{
+	return glc_util_setflag(fd, O_NONBLOCK);
 }
 
 /**  \} */

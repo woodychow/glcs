@@ -50,10 +50,12 @@ struct alsa_capture_s {
 	unsigned rate_usec;
 	size_t period_size_in_bytes;
 
-	snd_async_handler_t *async_handler;
+	int interrupt_pipe[2];
+	struct pollfd *fds;
+	nfds_t nfds;
+	nfds_t nfds_capacity;
 
 	pthread_t capture_thread;
-	sem_t capture;
 	int skip_data;
 	int stop_capture;
 	int thread_running;
@@ -62,6 +64,8 @@ struct alsa_capture_s {
 static int alsa_capture_open(alsa_capture_t alsa_capture);
 static int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_params);
 static int alsa_capture_init_sw(alsa_capture_t alsa_capture, snd_pcm_sw_params_t *sw_params);
+static int alsa_capture_init_fds(alsa_capture_t alsa_capture);
+static int alsa_capture_prepare_fds(alsa_capture_t alsa_capture);
 
 static void alsa_capture_async_callback(snd_async_handler_t *async_handler);
 static void *alsa_capture_thread(void *argptr);
@@ -83,8 +87,8 @@ int alsa_capture_init(alsa_capture_t *alsa_capture, glc_t *glc)
 	glc_state_audio_new((*alsa_capture)->glc, &(*alsa_capture)->id,
 			    &(*alsa_capture)->state_audio);
 	(*alsa_capture)->skip_data = 1;
-
-	sem_init(&(*alsa_capture)->capture, 0, 0);
+	(*alsa_capture)->interrupt_pipe[0] = -1;
+	(*alsa_capture)->interrupt_pipe[1] = -1;
 
 	return 0;
 }
@@ -94,15 +98,21 @@ int alsa_capture_destroy(alsa_capture_t alsa_capture)
 	if (unlikely(alsa_capture == NULL))
 		return EINVAL;
 
-	/** \todo snd_pcm_drain() ? */
-	if (alsa_capture->pcm)
-		snd_pcm_close(alsa_capture->pcm);
-
 	alsa_capture->stop_capture = 1;
-	sem_post(&alsa_capture->capture);
 
-	if (alsa_capture->thread_running)
+	if (alsa_capture->thread_running) {
+		/*
+		 * e stands for "end" command.
+		 * We do not really care whether or not the write
+		 * succeed. Worst case scenario, the thread will see
+		 * the stop_capture flag at the end of the next period.
+		 */
+		write(alsa_capture->interrupt_pipe[1],"e",1);
 		pthread_join(alsa_capture->capture_thread, NULL);
+	}
+
+	close(alsa_capture->interrupt_pipe[1]);
+	close(alsa_capture->interrupt_pipe[0]);
 
 	free(alsa_capture);
 	return 0;
@@ -151,6 +161,9 @@ int alsa_capture_start(alsa_capture_t alsa_capture)
 		return EAGAIN;
 
 	if (unlikely(!alsa_capture->thread_running)) {
+		pipe(alsa_capture->interrupt_pipe);
+		glc_util_set_nonblocking(alsa_capture->interrupt_pipe[0]);
+		glc_util_set_nonblocking(alsa_capture->interrupt_pipe[1]);
 		pthread_create(&alsa_capture->capture_thread, &attr,
 				alsa_capture_thread, (void *) alsa_capture);
 		alsa_capture->thread_running = 1;
@@ -257,14 +270,6 @@ int alsa_capture_open(alsa_capture_t alsa_capture)
 	ps_packet_close(&packet);
 	ps_packet_destroy(&packet);
 
-	/* init callback */
-	if (unlikely((ret = snd_async_add_pcm_handler(&alsa_capture->async_handler,
-					alsa_capture->pcm,
-					alsa_capture_async_callback, alsa_capture)) < 0))
-		goto err;
-	if (unlikely((ret = snd_pcm_start(alsa_capture->pcm)) < 0))
-		goto err;
-
 	glc_log(alsa_capture->glc, GLC_DEBUG, "alsa_capture",
 		 "success (stream=%d, device=%s, rate=%u, channels=%u)", alsa_capture->id,
 		 alsa_capture->device, alsa_capture->rate, alsa_capture->channels);
@@ -355,17 +360,37 @@ err:
 	return -ret;
 }
 
-void alsa_capture_async_callback(snd_async_handler_t *async_handler)
+int alsa_capture_init_fds(alsa_capture_t alsa_capture)
 {
-	/*
-	 Async handler is called from signal handler so mixing this
-	 with mutexes seems to be a retared idea.
+	alsa_capture->fds = calloc(3, sizeof(struct pollfd));
+	if (unlikely(!alsa_capture->fds))
+		return -ENOMEM;
+	alsa_capture->nfds_capacity = 3;
 
-	 http://www.kaourantin.net/2006/08/pthreads-and-signals.html
-	 */
-	alsa_capture_t alsa_capture =
-		snd_async_handler_get_callback_private(async_handler);
-	sem_post(&alsa_capture->capture);
+	alsa_capture->nfds =1;
+	alsa_capture->fds[0].fd = alsa_capture->interrupt_pipe[0];
+	alsa_capture->fds[0].events = POLLIN;
+	return 0;
+}
+
+int alsa_capture_prepare_fds(alsa_capture_t alsa_capture)
+{
+	int pcm_nfds;
+	int ret = 0;
+	if (!alsa_capture->skip_data) {
+		pcm_nfds = snd_pcm_poll_descriptors_count(alsa_capture->pcm);
+		if (pcm_nfds+1 > alsa_capture->nfds_capacity) {
+			struct pollfd *ptr = realloc(alsa_capture->fds, (pcm_nfds+1)*sizeof(struct pollfd));
+			if (!ptr)
+				return -ENOMEM;
+			alsa_capture->fds = ptr;
+			alsa_capture->nfds_capacity = pcm_nfds+1;
+		}
+		alsa_capture->nfds = pcm_nfds+1;
+		ret = snd_pcm_poll_descriptors(alsa_capture->pcm, &alsa_capture->fds[1], pcm_nfds);
+	} else
+		alsa_capture->nfds = 1;
+	return ret;
 }
 
 void *alsa_capture_thread(void *argptr)
@@ -379,12 +404,27 @@ void *alsa_capture_thread(void *argptr)
 	int ret;
 	char *dma;
 
+	glc_util_block_signals();
+
 	ps_packet_init(&packet, alsa_capture->to);
 	msg_hdr.type = GLC_MESSAGE_AUDIO_DATA;
 
-	while (!sem_wait(&alsa_capture->capture)) {
-		if (unlikely(alsa_capture->stop_capture))
-			break;
+	if (unlikely(alsa_capture_open(alsa_capture) < 0))
+		goto end;
+
+	if (unlikely(alsa_capture_init_fds(alsa_capture) < 0))
+		goto end;
+
+	while (!alsa_capture->stop_capture) {
+
+		if (unlikely(alsa_capture_prepare_fds(alsa_capture) < 0))
+			goto end;
+
+		ret = poll(alsa_capture->fds, alsa_capture->nfds, -1);
+
+		if (ret > 0) {
+			
+		}
 
 		avail = 0;
 		if (unlikely((ret = snd_pcm_delay(alsa_capture->pcm, &avail)) < 0))
@@ -398,7 +438,8 @@ void *alsa_capture_thread(void *argptr)
 
 			/* and discard it if glc is paused */
 			if (alsa_capture->skip_data) {
-				fprintf(stderr, "snd_pcm_reset()\n");
+				glc_log(alsa_capture->glc, GLC_INFORMATION,
+					"alsa_capture", "snd_pcm_reset()");
 				snd_pcm_reset(alsa_capture->pcm);
 				continue;
 			}
@@ -462,7 +503,11 @@ cancel:
 				break;
 		}
 	}
-
+end:
+	free(alsa_capture->fds);
+	/** TODO: snd_pcm_drain() ?
+	 */
+	snd_pcm_close(alsa_capture->pcm);
 	ps_packet_destroy(&packet);
 	return NULL;
 }
