@@ -33,9 +33,10 @@
 struct alsa_capture_s {
 	glc_t *glc;
 	ps_buffer_t *to;
+	glc_message_header_t msg_hdr;
+	glc_audio_data_header_t hdr;
 
 	glc_state_audio_t state_audio;
-	glc_stream_id_t id;
 
 	snd_pcm_t *pcm;
 	snd_pcm_uframes_t period_size;
@@ -48,7 +49,6 @@ struct alsa_capture_s {
 	snd_pcm_format_t format;
 	ssize_t bytes_per_frame;
 	unsigned rate_usec;
-	size_t period_size_in_bytes;
 	glc_utime_t delay_usec;
 
 	int interrupt_pipe[2];
@@ -68,9 +68,9 @@ static int alsa_capture_init_sw(alsa_capture_t alsa_capture, snd_pcm_sw_params_t
 static int alsa_capture_init_fds(alsa_capture_t alsa_capture);
 static int alsa_capture_prepare_fds(alsa_capture_t alsa_capture);
 static int alsa_capture_check_state(alsa_capture_t alsa_capture);
-static int alsa_capture_pcm_error(snd_pcm_t *pcm);
-static void alsa_capture_read_pcm(alsa_capture_t alsa_capture, ps_packet_t *packet,
-				glc_message_header_t *msg_hdr);
+static int alsa_capture_pcm_error(alsa_capture_t alsa_capture);
+static int alsa_capture_process_pcm(alsa_capture_t alsa_capture, ps_packet_t *packet);
+static int alsa_capture_read_pcm(alsa_capture_t alsa_capture, char *dma);
 static void *alsa_capture_thread(void *argptr);
 
 static glc_audio_format_t alsa_capture_glc_format(snd_pcm_format_t pcm_fmt);
@@ -87,7 +87,7 @@ int alsa_capture_init(alsa_capture_t *alsa_capture, glc_t *glc)
 	(*alsa_capture)->channels = 2;
 	(*alsa_capture)->rate = 44100;
 	(*alsa_capture)->min_periods = 2;
-	glc_state_audio_new((*alsa_capture)->glc, &(*alsa_capture)->id,
+	glc_state_audio_new((*alsa_capture)->glc, &(*alsa_capture)->hdr.id,
 			    &(*alsa_capture)->state_audio);
 	(*alsa_capture)->skip_data = 1;
 	(*alsa_capture)->interrupt_pipe[0] = -1;
@@ -226,7 +226,7 @@ int alsa_capture_open(alsa_capture_t alsa_capture)
 					&alsa_capture->period_size, NULL))))
 		goto err;
 	alsa_capture->bytes_per_frame = snd_pcm_frames_to_bytes(alsa_capture->pcm, 1);
-	alsa_capture->period_size_in_bytes = alsa_capture->period_size * alsa_capture->bytes_per_frame;
+	alsa_capture->hdr.size = alsa_capture->period_size * alsa_capture->bytes_per_frame;
 
 	/* read actual settings */
 	if (unlikely((ret = snd_pcm_hw_params_get_format(hw_params, &alsa_capture->format)) < 0))
@@ -244,11 +244,11 @@ int alsa_capture_open(alsa_capture_t alsa_capture)
 	alsa_capture->flags = GLC_AUDIO_INTERLEAVED;
 
 	/* prepare packet */
-	fmt_msg.id = alsa_capture->id;
-	fmt_msg.rate = alsa_capture->rate;
+	fmt_msg.id       = alsa_capture->hdr.id;
+	fmt_msg.rate     = alsa_capture->rate;
 	fmt_msg.channels = alsa_capture->channels;
-	fmt_msg.flags = alsa_capture->flags;
-	fmt_msg.format = alsa_capture_glc_format(alsa_capture->format);
+	fmt_msg.flags    = alsa_capture->flags;
+	fmt_msg.format   = alsa_capture_glc_format(alsa_capture->format);
 
 	if (unlikely(!fmt_msg.format)) {
 		glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
@@ -417,9 +417,10 @@ int alsa_capture_check_state(alsa_capture_t alsa_capture)
 	return ret;
 }
 
-int alsa_capture_pcm_error(snd_pcm_t *pcm)
+int alsa_capture_pcm_error(alsa_capture_t alsa_capture)
 {
-	switch(snd_pcm_state(pcm)) {
+	snd_pcm_state_t s = snd_pcm_state(alsa_capture->pcm);
+	switch(s) {
 	case SND_PCM_STATE_XRUN:
 		return -EPIPE;
 	case SND_PCM_STATE_SUSPENDED:
@@ -429,17 +430,47 @@ int alsa_capture_pcm_error(snd_pcm_t *pcm)
 	case SND_PCM_STATE_RUNNING:
 		return 0;
 	default:
+		glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture", "unexpected state: %s",
+			snd_pcm_state_name(s));
 		return -EIO;
 	}
 }
 
-int alsa_capture_read_pcm(alsa_capture_t alsa_capture, ps_packet_t *packet,
-			glc_message_header_t *msg_hdr)
+int alsa_capture_read_pcm(alsa_capture_t alsa_capture, char *dma)
+{
+	ssize_t r;
+	size_t result = 0;
+	size_t count  = alsa_capture->period_size;
+
+	while (count > 0) {
+		r = snd_pcm_readi(alsa_capture->pcm,dma,count);
+		if (unlikely(r == -EPIPE || r == -ESTRPIPE)) {
+			r = -alsa_capture_xrun(alsa_capture,r);
+			if (unlikely(r < 0))
+				glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
+					"xrun recovery failed: %s", snd_strerror(r));
+			return r;
+		} else if (unlikely(r < 0)) {
+			if (unlikely(r != -EINTR))
+				return r;
+		} else {
+			result += r;
+			count  -= r;
+			dma    += r * alsa_capture->bytes_per_frame;
+			if (unlikely(count))
+				glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture",
+					"read %ld, expected %zd",
+				 	read * alsa_capture->bytes_per_frame,
+				 	alsa_capture->hdr.size);
+		}
+	}
+	return result;
+}
+
+int alsa_capture_process_pcm(alsa_capture_t alsa_capture, ps_packet_t *packet)
 {
 	snd_pcm_sframes_t read, avail;
-	glc_utime_t time;
-	glc_audio_data_header_t hdr;
-	int ret;
+	int ret = 0;
 	char *dma;
 	unsigned short revents;
 
@@ -450,47 +481,72 @@ int alsa_capture_read_pcm(alsa_capture_t alsa_capture, ps_packet_t *packet,
 		return 0;
 	}
 	if (unlikely(revents & (POLLERR|POLLNVAL))) {
-		return alsa_capture_xrun(alsa_capture, alsa_capture_pcm_error(alsa_capture->pcm));
+		return alsa_capture_xrun(alsa_capture, alsa_capture_pcm_error(alsa_capture));
 	}
 	else if (revents & POLLIN) {
 		while (unlikely((avail = snd_pcm_avail(alsa_capture->pcm)) == -EINTR));
 		if (unlikely(avail < 0))
-			return alsa_capture_xrun(alsa_capture,avail);
+			return -alsa_capture_xrun(alsa_capture,avail);
 
-		time = glc_state_time(alsa_capture->glc);
+		alsa_capture->hdr.time = glc_state_time(alsa_capture->glc);
 
-		if (unlikely(alsa_capture->delay_usec < time))
-			time -= alsa_capture->delay_usec;
-		hdr.time = time;
-		hdr.size = alsa_capture->period_size_in_bytes;
-		hdr.id = alsa_capture->id;
+		if (likely(alsa_capture->delay_usec <= alsa_capture->hdr.time))
+			alsa_capture->hdr.time -= alsa_capture->delay_usec;
 
 		if (unlikely((ret = ps_packet_open(&packet, PS_PACKET_WRITE))))
 			goto cancel;
-		if (unlikely((ret = ps_packet_write(&packet, &msg_hdr,
+		if (unlikely((ret = ps_packet_write(&packet, &alsa_capture->msg_hdr,
 					sizeof(glc_message_header_t)))))
 			goto cancel;
-		if (unlikely((ret = ps_packet_write(&packet, &hdr,
+		if (unlikely((ret = ps_packet_write(&packet, &alsa_capture->hdr,
 					sizeof(glc_audio_data_header_t)))))
 			goto cancel;
 		if (unlikely((ret = ps_packet_dma(&packet, (void *) &dma,
-					hdr.size, PS_ACCEPT_FAKE_DMA))))
+					alsa_capture->hdr.size, PS_ACCEPT_FAKE_DMA))))
 			goto cancel;
 
+		if (unlikely((read = alsa_capture_read_pcm(alsa_capture,dma)) != alsa_capture->hdr.size)) {
+			if (unlikely(read < 0))
+				alsa_capture->stop_capture = 1;
+			ret = read;
+			goto cancel;
+		}
+
+		if (unlikely((ret = ps_packet_setsize(&packet,
+						sizeof(glc_message_header_t) +
+						sizeof(glc_audio_data_header_t) +
+						alsa_capture->hdr.size))))
+			goto cancel;
+
+		/* TODO: Once packet size is set I think that you cannot cancel the msg anymore */
+		if (unlikely((ret = ps_packet_close(&packet))))
+			goto cancel;
+
+		/* just check for xrun */
+		if ((ret = snd_pcm_delay(alsa_capture->pcm, &avail)) < 0) {
+			alsa_capture_xrun(alsa_capture, ret);
+			break;
+		}
+		return 0;
+
+cancel:
+		glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
+			"%s (%d)", strerror(ret), ret);
+		ps_packet_cancel(&packet)
 	}
+	return ret;
 }
 
 void *alsa_capture_thread(void *argptr)
 {
 	alsa_capture_t alsa_capture = argptr;
-	glc_message_header_t msg_hdr;
 	ps_packet_t packet;
 	int ret;
 
 	glc_util_block_signals();
 
 	ps_packet_init(&packet, alsa_capture->to);
-	msg_hdr.type = GLC_MESSAGE_AUDIO_DATA;
+	alsa_capture->msg_hdr.type = GLC_MESSAGE_AUDIO_DATA;
 
 	if (unlikely(alsa_capture_open(alsa_capture) < 0))
 		goto end;
@@ -501,68 +557,21 @@ void *alsa_capture_thread(void *argptr)
 	while (!alsa_capture->stop_capture) {
 
 		if (unlikely(alsa_capture_prepare_fds(alsa_capture) < 0))
-			goto end;
+			break;
 
-		ret = poll(alsa_capture->fds, alsa_capture->nfds, -1);
+		if (unlikely((ret = poll(alsa_capture->fds, alsa_capture->nfds, -1)) < 0 &&
+				errno != EINTR)) {
+			glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
+				"poll() error: %s (%d)", strerror(errno), errno);
+			break;
+		}
 
 		if (ret > 0) {
 			if (alsa_capture_check_state(alsa_capture))
 				continue;
-			if (alsa_capture->nfds > 1)
-				alsa_capture_read_pcm(alsa_capture, &packet, &msg_hdr);
-		}
-			if (unlikely((ret = ps_packet_open(&packet, PS_PACKET_WRITE))))
-				goto cancel;
-			if (unlikely((ret = ps_packet_write(&packet, &msg_hdr,
-						sizeof(glc_message_header_t)))))
-				goto cancel;
-			if (unlikely((ret = ps_packet_write(&packet, &hdr,
-						sizeof(glc_audio_data_header_t)))))
-				goto cancel;
-			if (unlikely((ret = ps_packet_dma(&packet, (void *) &dma,
-						hdr.size, PS_ACCEPT_FAKE_DMA))))
-				goto cancel;
-
-			if (unlikely((read = snd_pcm_readi(alsa_capture->pcm, dma,
-						alsa_capture->period_size)) < 0)) {
-				read = -alsa_capture_xrun(alsa_capture, read);
-				if (unlikely(read < 0)) {
-					glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
-						"xrun recovery failed: %s", snd_strerror(read));
-				}
-				ret = read;
-				goto cancel;
-			} else if (unlikely(read != alsa_capture->period_size))
-				glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture",
-					 "read %ld, expected %zd",
-					 read * alsa_capture->bytes_per_frame,
-					 alsa_capture->period_size_in_bytes);
-
-			hdr.size = read * alsa_capture->bytes_per_frame;
-			if (unlikely((ret = ps_packet_setsize(&packet,
-							sizeof(glc_message_header_t) +
-							sizeof(glc_audio_data_header_t) +
-							hdr.size))))
-				goto cancel;
-
-			/* TODO: Once packet size is set I think that you cannot cancel the msg anymore */
-			if (unlikely((ret = ps_packet_close(&packet))))
-				goto cancel;
-
-			/* just check for xrun */
-			if ((ret = snd_pcm_delay(alsa_capture->pcm, &avail)) < 0) {
-				alsa_capture_xrun(alsa_capture, ret);
-				break;
+			if (alsa_capture->nfds > 1) {
+				alsa_capture_process_pcm(alsa_capture, &packet, &msg_hdr);
 			}
-			continue;
-
-cancel:
-			glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
-				"%s (%d)", strerror(ret), ret);
-			if (ret == EINTR)
-				break;
-			if (ps_packet_cancel(&packet))
-				break;
 		}
 	}
 end:
@@ -579,9 +588,8 @@ end:
  */
 int alsa_capture_xrun(alsa_capture_t alsa_capture, int err)
 {
-	glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture", "overrun");
-
 	if (err == -EPIPE) {
+		glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture", "overrun");
 		if ((err = snd_pcm_prepare(alsa_capture->pcm)) < 0)
 			return -err;
 		if ((err = snd_pcm_start(alsa_capture->pcm)) < 0)
