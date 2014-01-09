@@ -332,4 +332,10 @@ int glc_util_set_nonblocking(int fd)
 	return glc_util_setflag(fd, O_NONBLOCK);
 }
 
+void glc_util_empty_pipe(int fd)
+{
+	char buf[256];
+	while (read(fd,buf,256) > 0);
+}
+
 /**  \} */
