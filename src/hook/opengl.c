@@ -144,6 +144,7 @@ int opengl_init(glc_t *glc)
 		gl_capture_lock_fps(opengl.gl_capture, atoi(getenv("GLC_LOCK_FPS")));
 
 	get_real_opengl();
+	glc_account_threads(opengl.glc, 1, (opengl.scale_factor != 1.0) || opengl.convert_ycbcr_420jpeg);
 	return 0;
 }
 

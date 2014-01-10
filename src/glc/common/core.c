@@ -25,6 +25,8 @@
 
 struct glc_core_s {
 	struct timespec init_time;
+	long int single_process_num;
+	long int multi_process_num;
 	long int threads_hint;
 };
 
@@ -47,26 +49,7 @@ int glc_init(glc_t *glc)
 
 	clock_getttime(CLOCK_MONOTONIC, &glc->core->init_time);
 
-	/*
-	 * threads_hint sets the number of threads used in filters
-	 * for modifying the video during playback. I see at least 2
-	 * problems with that:
-	 *
-	 * 1. For the play pipeline, you end up with 4*number of cores threads.
-	 *    IMHO, it is not a good practice to have much more threads than
-	 *    you have cores. This is especially true for CPU bounded processing
-	 *    like what you find in the glc filters.
-	 * 2. I see no synchronization to ensure that packets processed in parallel
-	 *    in a given pipeline stage are put back in the correct order in the next
-	 *    ring buffer. I have experienced playback freeze and I suspect this being
-	 *    the cause:
-	 *
-	 *    In gl_play.c, you have pic_hdr->time > time + gl_play->sleep_threshold
-	 *    You end up with an underflow if this condition is true and
-	 *    pic_hdr->time < time.
-	 */
-//	glc->core->threads_hint = sysconf(_SC_NPROCESSORS_ONLN);
-	glc->core->threads_hint = 1;
+	glc->core->threads_hint = 1; /* safe conservative default value */
 
 	if (unlikely((ret = glc_log_init(glc))))
 		return ret;
@@ -118,6 +101,26 @@ int glc_set_threads_hint(glc_t *glc, long int count)
 		return EINVAL;
 	glc->core->threads_hint = count;
 	return 0;
+}
+
+void glc_account_threads(glc_t *glc, long int single, long int multi)
+{
+	glc->core->single_process_num += single;
+	glc->core->multi_process_num  += multi;
+}
+
+void glc_compute_threads_hint(glc_t *glc)
+{
+	if (unlikely(!glc->core->multi_process_num))
+		glc->core->multi_process_num = 1; /* Avoid division by 0 */
+	glc->core->threads_hint  = sysconf(_SC_NPROCESSORS_ONLN) - glc->core->single_process_num;
+	glc->core->threads_hint /= glc->core->multi_process_num;
+	if (unlikely(glc->core->threads_hint <  1))
+		glc->core->threads_hint = 1;
+	glc_log(glc, GLC_INFORMATION, "core",
+		"single process num %ld multi process num %d threads num per multi process",
+		glc->core->single_process_num, glc->core->multi_process_num,
+		glc->core->threads_hint);
 }
 
 /**  \} */

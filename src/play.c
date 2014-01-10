@@ -438,6 +438,8 @@ int play_stream(struct play_s *play)
 		goto err;
 
 	/* init filters */
+	glc_account_threads(&play->glc,4,4);
+	glc_compute_threads_hint(&play->glc);
 	if (unlikely((ret = unpack_init(&unpack, &play->glc))))
 		goto err;
 	if (unlikely((ret = rgb_init(&rgb, &play->glc))))
@@ -529,6 +531,9 @@ int stream_info(struct play_s *play)
 		goto err;
 
 	/* and filters */
+	glc_account_threads(&play->glc,2,1);
+	glc_compute_threads_hint(&play->glc);
+
 	if (unlikely((ret = unpack_init(&unpack, &play->glc))))
 		goto err;
 	if (unlikely((ret = info_init(&info, &play->glc))))
@@ -588,6 +593,8 @@ int export_img(struct play_s *play)
 		goto err;
 
 	/* filters */
+	glc_account_threads(&play->glc,2,4);
+	glc_compute_threads_hint(&play->glc);
 	if (unlikely((ret = unpack_init(&unpack, &play->glc))))
 		goto err;
 	if (unlikely((ret = rgb_init(&rgb, &play->glc))))
@@ -679,6 +686,8 @@ int export_yuv4mpeg(struct play_s *play)
 		goto err;
 
 	/* initialize filters */
+	glc_account_threads(&play->glc,2,4);
+	glc_compute_threads_hint(&play->glc);
 	if (unlikely((ret = unpack_init(&unpack, &play->glc))))
 		goto err;
 	if (unlikely((ret = ycbcr_init(&ycbcr, &play->glc))))
@@ -765,6 +774,8 @@ int export_wav(struct play_s *play)
 		goto err;
 
 	/* init filters */
+	glc_account_threads(&play->glc,2,2);
+	glc_compute_threads_hint(&play->glc);
 	if (unlikely((ret = unpack_init(&unpack, &play->glc))))
 		goto err;
 	if (unlikely((ret = wav_init(&wav, &play->glc))))

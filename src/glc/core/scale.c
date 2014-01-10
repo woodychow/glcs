@@ -73,7 +73,8 @@ static int scale_read_callback(glc_thread_state_t *state);
 static int scale_write_callback(glc_thread_state_t *state);
 static void scale_finish_callback(void *ptr, int err);
 
-static int scale_video_format_message(scale_t scale, glc_video_format_message_t *format_message, glc_thread_state_t *state);
+static int scale_video_format_message(scale_t scale, glc_video_format_message_t *format_message,
+				glc_thread_state_t *state);
 static int scale_get_video_stream(scale_t scale, glc_stream_id_t id, struct scale_video_stream_s **video);
 
 static int scale_generate_rgb_map(scale_t scale, struct scale_video_stream_s *video);

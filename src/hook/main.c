@@ -85,7 +85,7 @@ void init_glc()
 {
 	struct sigaction new_sighandler, old_sighandler;
 	int ret;
-	mpriv.flags = 0;
+	mpriv.flags = MAIN_COMPRESS_LZO;
 	mpriv.capture = 0;
 	mpriv.stop_time = 0;
 	mpriv.stream_file = NULL;
@@ -195,6 +195,8 @@ int load_environ()
 		else
 			mpriv.flags |= MAIN_COMPRESS_NONE;
 	}
+
+	glc_account_threads(&mpriv.glc,1,!(mpriv.flags & MAIN_COMPRESS_NONE));
 
 	return 0;
 }
@@ -365,6 +367,8 @@ int start_glc()
 		return EAGAIN;
 
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "starting glc");
+
+	glc_compute_threads_hint(&mpriv.glc);
 
 	/* initialize file & write stream info */
 	if (unlikely((ret = file_init(&mpriv.file, &mpriv.glc))))

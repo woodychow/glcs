@@ -80,6 +80,10 @@ __PUBLIC long int glc_threads_hint(glc_t *glc);
  */
 __PUBLIC int glc_set_threads_hint(glc_t *glc, long int count);
 
+__PUBLIC void glc_account_threads(glc_t *glc, long int single, long int multi);
+
+__PUBLIC void glc_compute_threads_hint(glc_t *glc);
+
 #ifdef __cplusplus
 }
 #endif

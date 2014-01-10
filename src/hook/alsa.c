@@ -72,6 +72,7 @@ int alsa_init(glc_t *glc)
 	alsa.capture_stream = NULL;
 	alsa.alsa_hook = NULL;
 	int ret = 0;
+	long int captured_stream_num = 0;
 
 	glc_log(alsa.glc, GLC_DEBUG, "alsa", "initializing");
 
@@ -91,12 +92,14 @@ int alsa_init(glc_t *glc)
 	}
 
 	if (getenv("GLC_AUDIO_RECORD"))
-		alsa_parse_capture_cfg(getenv("GLC_AUDIO_RECORD"));
+		captured_stream_num = alsa_parse_capture_cfg(getenv("GLC_AUDIO_RECORD"));
 
 	get_real_alsa();
 
 	/* make sure libasound.so does not call our hooked functions */
 	alsa_unhook_so("*libasound.so*");
+
+	glc_account_threads(alsa.glc, 1+(alsa.capture != 0)+captured_stream_num, 0);
 
 	return 0;
 }
@@ -107,6 +110,7 @@ int alsa_parse_capture_cfg(const char *cfg)
 	const char *args, *next, *device = cfg;
 	unsigned int channels, rate;
 	size_t len;
+	int ret = 0;
 
 	while (device != NULL) {
 		while (*device == ';')
@@ -142,9 +146,10 @@ int alsa_parse_capture_cfg(const char *cfg)
 		alsa.capture_stream = stream;
 
 		device = next;
+		++ret;
 	}
 
-	return 0;
+	return ret;
 }
 
 int alsa_start(ps_buffer_t *buffer)
