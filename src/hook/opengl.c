@@ -161,6 +161,9 @@ int opengl_start(ps_buffer_t *buffer)
 
 		ps_bufferattr_t attr;
 		ps_bufferattr_init(&attr);
+		if (glc_log_get_level(opengl.glc) >= GLC_PERFORMANCE)
+			ps_bufferattr_setflags(&attr, PS_BUFFER_STATS);
+
 		ps_bufferattr_setsize(&attr, opengl.unscaled_size);
 		opengl.unscaled = (ps_buffer_t *) malloc(sizeof(ps_buffer_t));
 		ps_buffer_init(opengl.unscaled, &attr);
@@ -188,6 +191,7 @@ int opengl_start(ps_buffer_t *buffer)
 int opengl_close()
 {
 	int ret;
+	ps_stats_t stats;
 	if (!opengl.started)
 		return 0;
 
@@ -199,7 +203,7 @@ int opengl_close()
 
 	if (opengl.unscaled) {
 		if (lib.running) {
-			if ((ret = glc_util_write_end_of_stream(opengl.glc, opengl.unscaled))) {
+			if (unlikely((ret = glc_util_write_end_of_stream(opengl.glc, opengl.unscaled)))) {
 				glc_log(opengl.glc, GLC_ERROR, "opengl",
 					 "can't write end of stream: %s (%d)", strerror(ret), ret);
 				return ret;
@@ -215,7 +219,7 @@ int opengl_close()
 			scale_destroy(opengl.scale);
 		}
 	} else if (lib.running) {
-		if ((ret = glc_util_write_end_of_stream(opengl.glc, opengl.buffer))) {
+		if (unlikely((ret = glc_util_write_end_of_stream(opengl.glc, opengl.buffer)))) {
 			glc_log(opengl.glc, GLC_ERROR, "opengl",
 				 "can't write end of stream: %s (%d)", strerror(ret), ret);
 			return ret;
@@ -224,6 +228,10 @@ int opengl_close()
 		ps_buffer_cancel(opengl.buffer);
 
 	if (opengl.unscaled) {
+		if(!ps_buffer_stats(opengl.unscaled, &stats)) {
+			glc_log(opengl.glc, GLC_PERFORMANCE, "opengl", "unscale buffer stats:");
+			ps_stats_text(&stats, glc_log_get_stream(opengl.glc));
+		}
 		ps_buffer_destroy(opengl.unscaled);
 		free(opengl.unscaled);
 	}
@@ -236,7 +244,7 @@ int opengl_push_message(glc_message_header_t *hdr, void *message, size_t message
 	ps_packet_t packet;
 	int ret = 0;
 	ps_buffer_t *to;
-	if (!lib.running)
+	if (unlikely(!lib.running))
 		return EAGAIN;
 
 	if (opengl.unscaled)
@@ -267,7 +275,7 @@ int opengl_capture_start()
 	if (opengl.capturing)
 		return 0;
 
-	if (!(ret = gl_capture_start(opengl.gl_capture)))
+	if (likely(!(ret = gl_capture_start(opengl.gl_capture))))
 		opengl.capturing = 1;
 
 	return ret;
@@ -279,7 +287,7 @@ int opengl_capture_stop()
 	if (!opengl.capturing)
 		return 0;
 
-	if (!(ret = gl_capture_stop(opengl.gl_capture)))
+	if (likely(!(ret = gl_capture_stop(opengl.gl_capture))))
 		opengl.capturing = 0;
 
 	return ret;

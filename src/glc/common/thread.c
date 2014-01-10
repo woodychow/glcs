@@ -49,7 +49,6 @@ int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_bu
 {
 	int ret;
 	struct glc_thread_private_s *private;
-	pthread_attr_t attr;
 	size_t t;
 
 	if (unlikely(thread->threads < 1))
@@ -68,9 +67,6 @@ int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_bu
 	pthread_mutex_init(&private->open, NULL);
 	pthread_mutex_init(&private->finish, NULL);
 
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
 	private->pthread_thread = malloc(sizeof(pthread_t) * thread->threads);
 	for (t = 0; t < thread->threads; t++) {
 		private->running_threads++;
@@ -83,7 +79,6 @@ int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_bu
 		}
 	}
 
-	pthread_attr_destroy(&attr);
 	return 0;
 }
 
@@ -131,6 +126,8 @@ void *glc_thread(void *argptr)
 	write_size_set = ret = has_locked = packets_init = 0;
 	state.flags = state.read_size = state.write_size = 0;
 	state.ptr = thread->ptr;
+
+	glc_util_block_signals();
 
 	if (thread->flags & GLC_THREAD_READ) {
 		if (unlikely((ret = ps_packet_init(&read, private->from))))

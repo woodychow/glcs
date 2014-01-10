@@ -449,6 +449,10 @@ void lib_close()
 
 	 Adding a rwlock for all capture operations might inflict a noticeable
 	 cost, at least in complexity.
+
+	 Note that this comment, only apply to the host process threads
+	 calling opengl functions. All glc created threads are all
+	 properly disposed.
 	*/
 
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "closing glc");
