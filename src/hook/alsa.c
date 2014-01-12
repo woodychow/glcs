@@ -370,6 +370,7 @@ int __alsa_snd_pcm_open(snd_pcm_t **pcmp, const char *name, snd_pcm_stream_t str
 	/* it is not necessarily safe to call glc_init() from write funcs
 	   especially async mode (initiated from signal) is troublesome */
 	INIT_GLC
+	glc_log(alsa.glc,GLC_DEBUG,"alsa_hook", "openning %s", name);
 	int ret = alsa.snd_pcm_open(pcmp, name, stream, mode);
 	if ((alsa.capture) && (ret == 0))
 		alsa_hook_open(alsa.alsa_hook, *pcmp, name, stream, mode);
@@ -476,12 +477,14 @@ snd_pcm_sframes_t __alsa_snd_pcm_mmap_writen(snd_pcm_t *pcm, void **bufs, snd_pc
 	return ret;
 }
 
-__PUBLIC int snd_pcm_mmap_begin(snd_pcm_t *pcm, const snd_pcm_channel_area_t **areas, snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames)
+__PUBLIC int snd_pcm_mmap_begin(snd_pcm_t *pcm, const snd_pcm_channel_area_t **areas,
+				snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames)
 {
 	return __alsa_snd_pcm_mmap_begin(pcm, areas, offset, frames);
 }
 
-int __alsa_snd_pcm_mmap_begin(snd_pcm_t *pcm, const snd_pcm_channel_area_t **areas, snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames)
+int __alsa_snd_pcm_mmap_begin(snd_pcm_t *pcm, const snd_pcm_channel_area_t **areas,
+				snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames)
 {
 	INIT_GLC
 	int ret = alsa.snd_pcm_mmap_begin(pcm, areas, offset, frames);

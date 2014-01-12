@@ -70,10 +70,10 @@ struct alsa_hook_stream_s {
 	pthread_spinlock_t write_spinlock;
 
 	/* for busy waiting */
-	int capture_ready;
+	volatile int capture_ready;
 
 	char *capture_data;
-	size_t capture_size, capture_data_size;
+	ssize_t capture_size, capture_data_size;
 	glc_utime_t capture_time;
 
 	struct alsa_hook_stream_s *next;
@@ -101,7 +101,8 @@ static int alsa_hook_complex_to_interleaved(struct alsa_hook_stream_s *stream,
 static int alsa_hook_wait_for_thread(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
 static int alsa_hook_lock_write(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
 static int alsa_hook_unlock_write(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
-static int alsa_hook_set_data_size(struct alsa_hook_stream_s *stream, size_t size);
+static int alsa_hook_realloc_capture_buf(struct alsa_hook_stream_s *stream, ssize_t size)
+static int alsa_hook_set_data_size(struct alsa_hook_stream_s *stream, ssize_t size);
 static void *alsa_hook_thread(void *argptr);
 
 static glc_audio_format_t pcm_fmt_to_glc_fmt(snd_pcm_format_t pcm_fmt);
@@ -270,6 +271,11 @@ int alsa_hook_get_stream(alsa_hook_t alsa_hook, snd_pcm_t *pcm, struct alsa_hook
 	return 0;
 }
 
+/*
+ * The purpose of this thread is to make this module async signal safe.
+ * ie: it couldn't be called safely from a sighandler if host process
+ * use ALSA async mode and write to ALSA API from a sighandler.
+ */
 void *alsa_hook_thread(void *argptr)
 {
 	struct alsa_hook_stream_s *stream = (struct alsa_hook_stream_s *) argptr;
@@ -294,6 +300,11 @@ void *alsa_hook_thread(void *argptr)
 		if (unlikely(!stream->capture_running))
 			break;
 
+		if (unlikely(stream->capture_size < 0)) {
+			alsa_hook_realloc_capture_buf(stream,-stream->capture_size);
+			goto capture_ready;
+		}
+
 		hdr.time = stream->capture_time;
 		hdr.size = stream->capture_size;
 
@@ -317,6 +328,7 @@ void *alsa_hook_thread(void *argptr)
 
 		if (!(stream->mode & SND_PCM_ASYNC))
 			sem_post(&stream->capture_empty);
+capture_ready:
 		stream->capture_ready = 1;
 	}
 
@@ -327,6 +339,9 @@ void *alsa_hook_thread(void *argptr)
 	return NULL;
 }
 
+/*
+ * Might be called from signal handlers.
+ */
 int alsa_hook_wait_for_thread(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream)
 {
 	if (stream->mode & SND_PCM_ASYNC) {
@@ -344,8 +359,6 @@ int alsa_hook_wait_for_thread(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *
 
 	return 0;
 busy:
-	glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
-		 "dropped audio data, capture thread not ready");
 	return EBUSY;
 }
 
@@ -369,24 +382,48 @@ int alsa_hook_unlock_write(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *str
 	return ret;
 }
 
-int alsa_hook_set_data_size(struct alsa_hook_stream_s *stream, size_t size)
+int alsa_hook_realloc_capture_buf(struct alsa_hook_stream_s *stream, ssize_t size)
 {
+	char *op = stream->capture_data;
+	int ret = 0;
+	stream->capture_data_size = size;
+	stream->capture_data = (char *) realloc(stream->capture_data,
+						stream->capture_data_size);
+
+	if (unlikely(!stream->capture_data)) {
+		glc_log(stream->alsa_hook->glc, GLC_ERROR, "alsa_hook",
+			"realloc() error");
+		free(op);
+		stream->capture_data_size = 0;
+		ret = ENOMEM;
+	}
+	return ret;
+}
+
+/*
+ * Might be called from signal handlers.
+ */
+int alsa_hook_set_data_size(struct alsa_hook_stream_s *stream, ssize_t size)
+{
+	int ret = 0;
 	stream->capture_size = size;
 	if (size <= stream->capture_data_size)
 		return 0;
 
-	stream->capture_data_size = size;
+	if (!(stream->mode & SND_PCM_ASYNC)) {
+		ret = alsa_hook_realloc_capture_buf(stream,size);
+	} else {
+		/*
+		 * realloc is not an async-signal-safe function.
+		 * we ask the thread to enlarge the buffer for the next time
+		 * on our behalf.
+		 */
+		stream->capture_size = -size;
+		ret = EBUSY;
+		sem_post(&stream->capture_full);
+	}
 
-	if (stream->capture_data)
-		stream->capture_data = (char *) realloc(stream->capture_data,
-						stream->capture_data_size);
-	else
-		stream->capture_data = (char *) malloc(stream->capture_data_size);
-
-	if (unlikely(!stream->capture_data))
-		return ENOMEM;
-
-	return 0;
+	return ret;
 }
 
 int alsa_hook_open(alsa_hook_t alsa_hook, snd_pcm_t *pcm, const char *name,
@@ -419,24 +456,28 @@ int alsa_hook_close(alsa_hook_t alsa_hook, snd_pcm_t *pcm)
 	return 0;
 }
 
+/*
+ * Might be called from signal handlers.
+ */
 int alsa_hook_writei(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 		     const void *buffer, snd_pcm_uframes_t size)
 {
 	struct alsa_hook_stream_s *stream;
 	int ret = 0;
+	int savedErrno = errno;
 
 	if (!(alsa_hook->flags & ALSA_HOOK_CAPTURING))
-		return 0;
+		goto leave;
 
 	alsa_hook_get_stream(alsa_hook, pcm, &stream);
 
 	if (unlikely(!stream->initialized)) {
 		ret = EINVAL;
-		goto unlock;
+		goto leave;
 	}
 
 	if (unlikely((ret = alsa_hook_lock_write(alsa_hook, stream))))
-		return ret;
+		goto leave;
 
 	if (unlikely((ret = alsa_hook_wait_for_thread(alsa_hook, stream))))
 		goto unlock;
@@ -451,31 +492,38 @@ int alsa_hook_writei(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 
 unlock:
 	alsa_hook_unlock_write(alsa_hook, stream);
+leave:
+	errno = savedErrno;
 	return ret;
 }
 
+/*
+ * Might be called from signal handlers.
+ */
 int alsa_hook_writen(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 		     void **bufs, snd_pcm_uframes_t size)
 {
 	struct alsa_hook_stream_s *stream;
 	int c, ret = 0;
+	int savedErrno = errno;
 
 	if (!(alsa_hook->flags & ALSA_HOOK_CAPTURING))
-		return 0;
+		goto leave;
 
 	alsa_hook_get_stream(alsa_hook, pcm, &stream);
 
 	if (unlikely(!stream->initialized)) {
 		ret = EINVAL;
-		goto unlock;
+		goto leave;
 	}
 
 	if (unlikely((ret = alsa_hook_lock_write(alsa_hook, stream))))
-		return ret;
+		goto leave;
 
 	if (unlikely(stream->flags & GLC_AUDIO_INTERLEAVED)) {
-		glc_log(alsa_hook->glc, GLC_ERROR, "alsa_hook",
-			 "stream format (interleaved) incompatible with snd_pcm_writen()");
+		if (!(stream->mode & SND_PCM_ASYNC))
+			glc_log(alsa_hook->glc, GLC_ERROR, "alsa_hook",
+				 "stream format (interleaved) incompatible with snd_pcm_writen()");
 		ret = EINVAL;
 		goto unlock;
 	}
@@ -496,65 +544,79 @@ int alsa_hook_writen(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 
 unlock:
 	alsa_hook_unlock_write(alsa_hook, stream);
+leave:
+	errno = savedErrno;
 	return ret;
 }
 
+/*
+ * Might be called from signal handlers.
+ */
 int alsa_hook_mmap_begin(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 			       const snd_pcm_channel_area_t *areas,
 			       snd_pcm_uframes_t offset, snd_pcm_uframes_t frames)
 {
 	struct alsa_hook_stream_s *stream;
-	int ret;
+	int ret = 0;
+	int savedErrno = errno;
 
 	if (!(alsa_hook->flags & ALSA_HOOK_CAPTURING))
-		return 0;
+		goto leave;
 
 	alsa_hook_get_stream(alsa_hook, pcm, &stream);
 
 	if (unlikely(!stream->initialized)) {
-		alsa_hook_unlock_write(alsa_hook, stream);
-		return EINVAL;
+		ret = EINVAL;
+		goto leave;
 	}
 
 	if (unlikely((ret = alsa_hook_lock_write(alsa_hook, stream))))
-		return ret;
+		goto leave;
 
 	stream->mmap_areas = areas;
 	stream->frames = frames;
 	stream->offset = offset;
 
 	alsa_hook_unlock_write(alsa_hook, stream);
-	return 0;
+leave:
+	errno = savedErrno;
+	return ret;
 }
 
+/*
+ * Might be called from signal handlers.
+ */
 int alsa_hook_mmap_commit(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 				snd_pcm_uframes_t offset, snd_pcm_uframes_t frames)
 {
 	struct alsa_hook_stream_s *stream;
 	unsigned int c;
 	int ret = 0;
+	int savedErrno = errno;
 
 	if (!(alsa_hook->flags & ALSA_HOOK_CAPTURING))
-		return 0;
+		goto leave;
 
 	alsa_hook_get_stream(alsa_hook, pcm, &stream);
 
 	if (unlikely((ret = alsa_hook_lock_write(alsa_hook, stream))))
-		return ret;
+		goto leave;
 
 	if (unlikely(stream->channels == 0))
 		goto unlock; /* 0 channels :P */
 
 	if (unlikely(!stream->mmap_areas)) {
 		/* this might actually happen */
-		glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
-			 "snd_pcm_mmap_commit() before snd_pcm_mmap_begin()");
-		return EINVAL; /* not locked */
+		if (!(stream->mode & SND_PCM_ASYNC))
+			glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
+				 "snd_pcm_mmap_commit() before snd_pcm_mmap_begin()");
+		goto unlock;
 	}
 
 	if (unlikely(offset != stream->offset))
-		glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
-			 "offset=%lu != stream->offset=%lu", offset, stream->offset);
+		if (!(stream->mode & SND_PCM_ASYNC))
+			glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
+				 "offset=%lu != stream->offset=%lu", offset, stream->offset);
 
 	if (unlikely((ret = alsa_hook_wait_for_thread(alsa_hook, stream))))
 		goto unlock;
@@ -583,6 +645,8 @@ int alsa_hook_mmap_commit(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 
 unlock:
 	alsa_hook_unlock_write(alsa_hook, stream);
+leave:
+	errno = savedErrno;
 	return ret;
 }
 
