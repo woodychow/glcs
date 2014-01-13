@@ -4,6 +4,8 @@
  * \author Olivier Langlois <olivier@trillion01.com>
  * \date 2014
 
+    Copyright 2014 Olivier Langlois
+
     This file is part of glcs.
 
     glcs is free software: you can redistribute it and/or modify
