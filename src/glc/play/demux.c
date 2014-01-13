@@ -151,16 +151,12 @@ int demux_set_alsa_playback_device(demux_t demux, const char *device)
 int demux_process_start(demux_t demux, ps_buffer_t *from)
 {
 	int ret;
-	pthread_attr_t attr;
 	if (unlikely(demux->running))
 		return EAGAIN;
 
 	demux->from = from;
 
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	ret = pthread_create(&demux->thread, &attr, demux_thread, demux);
-	pthread_attr_destroy(&attr);
 
 	if (likely(!ret))
 		demux->running = 1;
@@ -289,10 +285,9 @@ int demux_video_stream_message(demux_t demux, glc_message_header_t *header,
 	if (unlikely((ret = demux_video_stream_get(demux, id, &video))))
 		return ret;
 
-	if (unlikely((ret = demux_video_stream_send(demux, video, header, data, size))))
-		return ret;
+	ret = demux_video_stream_send(demux, video, header, data, size);
 
-	return 0;
+	return ret;
 }
 
 int demux_video_stream_send(demux_t demux, struct demux_video_stream_s *video,
@@ -414,10 +409,9 @@ int demux_audio_stream_message(demux_t demux, glc_message_header_t *header,
 	if (unlikely((ret = demux_audio_stream_get(demux, id, &audio))))
 		return ret;
 
-	if (unlikely((ret = demux_audio_stream_send(demux, audio, header, data, size))))
-		return ret;
+	ret = demux_audio_stream_send(demux, audio, header, data, size);
 
-	return 0;
+	return ret;
 }
 
 int demux_audio_stream_close(demux_t demux)

@@ -204,7 +204,9 @@ int scale_read_callback(glc_thread_state_t *state) {
 	glc_video_frame_header_t *video_frame_header;
 
 	if (state->header.type == GLC_MESSAGE_VIDEO_FORMAT)
-		return scale_video_format_message(scale, (glc_video_format_message_t *) state->read_data, state);
+		return scale_video_format_message(scale,
+						(glc_video_format_message_t *) state->read_data,
+						state);
 
 	if (state->header.type == GLC_MESSAGE_VIDEO_FRAME) {
 		video_frame_header = (glc_video_frame_header_t *) state->read_data;
