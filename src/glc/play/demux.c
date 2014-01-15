@@ -204,6 +204,8 @@ void *demux_thread(void *argptr)
 
 	ps_packet_t read;
 
+	glc_util_block_signals();
+
 	if (unlikely((ret = ps_packet_init(&read, demux->from))))
 		goto err;
 
