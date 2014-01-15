@@ -29,7 +29,7 @@
  */
 
 #include <stdlib.h>
-#include <sys/time.h>
+#include <time.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
@@ -99,12 +99,12 @@ glc_utime_t glc_time(glc_t *glc)
 	ts.tv_sec -= glc->core->init_time.tv_sec;
 	ts.tv_nsec -= glc->core->init_time.tv_nsec;
 
-	if (ts.tv_usec < 0) {
+	if (ts.tv_nsec < 0) {
 		ts.tv_sec--;
 		ts.tv_nsec += 1000000000;
 	}
 
-	return (glc_utime_t) ts.tv_sec * (glc_utime_t) 1000000000 + (glc_utime_t) ts.tv_usec;
+	return (glc_utime_t) ts.tv_sec * (glc_utime_t) 1000000000 + (glc_utime_t) ts.tv_nsec;
 }
 
 long int glc_threads_hint(glc_t *glc)

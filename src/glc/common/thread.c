@@ -87,7 +87,7 @@ int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_bu
 	private->pthread_thread = malloc(sizeof(pthread_t) * thread->threads);
 	for (t = 0; t < thread->threads; t++) {
 		private->running_threads++;
-		if (unlikely((ret = pthread_create(&private->pthread_thread[t], &attr,
+		if (unlikely((ret = pthread_create(&private->pthread_thread[t], NULL,
 					  glc_thread, private)))) {
 			glc_log(private->glc, GLC_ERROR, "glc_thread",
 				 "can't create thread: %s (%d)", strerror(ret), ret);

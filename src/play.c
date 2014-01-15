@@ -394,14 +394,14 @@ static int init_buffers(ps_buffer_t *buffer_arr, size_t *sz_arr, unsigned *nm_ar
 {
 	ps_bufferattr_t attr;
 	int ret = 0;
-	unsigned k = 0;
+	unsigned i,j,k = 0;
 	ps_bufferattr_init(&attr);
 
-	for (unsigned i = 0; i < BUFFER_SIZE_ARR_SZ; ++i) {
+	for (i = 0; i < BUFFER_SIZE_ARR_SZ; ++i) {
 		if (unlikely((ret = ps_bufferattr_setsize(&attr,
 						sz_arr[i]))))
 			goto err;
-		for (unsigned j = 0; j < nm_arr[i]; ++j) {
+		for (j = 0; j < nm_arr[i]; ++j) {
 			if (unlikely((ret = ps_buffer_init(&buffer_arr[k++], &attr))))
 				goto err;
 		}
@@ -413,7 +413,8 @@ err:
 
 static void destroy_buffers(ps_buffer_t *buffer_arr, unsigned nm)
 {
-	for (unsigned i = 0; i < nm; ++i)
+	unsigned i;
+	for (i = 0; i < nm; ++i)
 		ps_buffer_destroy(&buffer_arr[i]);
 }
 

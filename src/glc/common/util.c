@@ -69,7 +69,7 @@ static int glc_util_app_name(glc_t *glc, char **path, u_int32_t *path_size);
  * \param date_size size of date string, including 0
  * \return 0 on success otherwise an error code
  */
-static int glc_util_utc_date(glc_t *glc, char **date, u_int32_t *date_size);
+static int glc_util_utc_date(glc_t *glc, char *date, u_int32_t *date_size);
 
 int glc_util_init(glc_t *glc)
 {
@@ -326,7 +326,7 @@ int glc_util_block_signals(void)
 
 int glc_util_setflag( int fd, int flag )
 {
-	int ret;
+	int val;
 	if (unlikely((val = fcntl(fd, F_GETFL, 0)) < 0))
 		return val;
 	val |= flag;

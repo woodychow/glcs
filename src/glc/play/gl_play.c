@@ -682,8 +682,8 @@ int gl_play_read_callback(glc_thread_state_t *state)
 
 		time = glc_state_time(gl_play->glc);
 		if (pic_hdr->time > time + gl_play->sleep_threshold) {
-			struct timespec ts = { .ts_sec  = (pic_hdr->time - time)/1000000000,
-					       .ts_nsec = (pic_hdr->time - time)%1000000000 };
+			struct timespec ts = { .tv_sec  = (pic_hdr->time - time)/1000000000,
+					       .tv_nsec = (pic_hdr->time - time)%1000000000 };
 			nanosleep(&ts,NULL);
 		}
 

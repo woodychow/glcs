@@ -33,7 +33,9 @@
  * Our io streams are private and aren't shared among multiple
  * threads.
  */
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -608,7 +610,7 @@ int file_read(file_t file, ps_buffer_t *to)
 		if (unlikely((ret = ps_packet_write(&packet, &header,
 						sizeof(glc_message_header_t)))))
 			goto err;
-		if (unlikely((ret = ps_packet_dma(&packet, &(void *)dma,
+		if (unlikely((ret = ps_packet_dma(&packet, (void **)&dma,
 					packet_size, PS_ACCEPT_FAKE_DMA))))
 			goto err;
 

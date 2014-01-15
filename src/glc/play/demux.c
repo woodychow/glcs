@@ -156,7 +156,7 @@ int demux_process_start(demux_t demux, ps_buffer_t *from)
 
 	demux->from = from;
 
-	ret = pthread_create(&demux->thread, &attr, demux_thread, demux);
+	ret = pthread_create(&demux->thread, NULL, demux_thread, demux);
 
 	if (likely(!ret))
 		demux->running = 1;

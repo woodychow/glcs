@@ -277,8 +277,8 @@ int alsa_play_play(alsa_play_t alsa_play, glc_audio_data_header_t *audio_hdr, ch
 			       (glc_utime_t) alsa_play->rate;
 
 	if (time + alsa_play->silence_threshold + duration < audio_hdr->time) {
-		struct timespec ts = { .ts_sec = (audio_hdr->time - time - duration)/1000000000,
-				       .ts_nsec = (audio_hdr->time - time - duration)%1000000000 };
+		struct timespec ts = { .tv_sec = (audio_hdr->time - time - duration)/1000000000,
+				       .tv_nsec = (audio_hdr->time - time - duration)%1000000000 };
 		nanosleep(&ts,NULL);
 	}
 	else if (time > audio_hdr->time) {
