@@ -146,7 +146,7 @@ static int gl_capture_init_video_format(gl_capture_t gl_capture,
 				struct gl_capture_video_stream_s *video);
 static int gl_capture_write_video_format_message(gl_capture_t gl_capture,
 				struct gl_capture_video_stream_s *video,
-				unsigned int w, unsigned int h)
+				unsigned int w, unsigned int h);
 static int gl_capture_update_video_stream(gl_capture_t gl_capture,
 				   struct gl_capture_video_stream_s *video);
 
@@ -896,8 +896,8 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	if (unlikeky((gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
 	    !(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))) {
 		if (now - video->last < gl_capture->fps) {
-			struct timespec ts = { .ts_sec  = (gl_capture->fps + video->last - now)/1000000000,
-					       .ts_nsec = (gl_capture->fps + video->last - now)%1000000000 };
+			struct timespec ts = { .tv_sec  = (gl_capture->fps + video->last - now)/1000000000,
+					       .tv_nsec = (gl_capture->fps + video->last - now)%1000000000 };
 			nanosleep(&ts,NULL);
 		}
 	}

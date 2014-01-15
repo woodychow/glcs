@@ -55,7 +55,7 @@ typedef struct {
 	glc_flags_t flags;
 } glc_lib_t;
 
-#define INIT_GLC pthread_once(&lib.init_once,init_glc)
+#define INIT_GLC pthread_once(&lib.init_once,init_glc);
 
 /**
  * \addtogroup main

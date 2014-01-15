@@ -64,7 +64,7 @@ int glc_init(glc_t *glc)
 
 	glc->core = (glc_core_t) calloc(1, sizeof(struct glc_core_s));
 
-	clock_getttime(CLOCK_MONOTONIC, &glc->core->init_time);
+	clock_gettime(CLOCK_MONOTONIC, &glc->core->init_time);
 
 	glc->core->threads_hint = 1; /* safe conservative default value */
 

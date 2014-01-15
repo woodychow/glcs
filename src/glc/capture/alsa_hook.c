@@ -117,7 +117,7 @@ static int alsa_hook_complex_to_interleaved(struct alsa_hook_stream_s *stream,
 static int alsa_hook_wait_for_thread(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
 static int alsa_hook_lock_write(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
 static int alsa_hook_unlock_write(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
-static int alsa_hook_realloc_capture_buf(struct alsa_hook_stream_s *stream, ssize_t size)
+static int alsa_hook_realloc_capture_buf(struct alsa_hook_stream_s *stream, ssize_t size);
 static int alsa_hook_set_data_size(struct alsa_hook_stream_s *stream, ssize_t size);
 static void *alsa_hook_thread(void *argptr);
 

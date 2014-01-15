@@ -380,9 +380,6 @@ int start_glc()
 	if (lib.running)
 		return EINVAL;
 
-	if (!lib.initialized)
-		return EAGAIN;
-
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "starting glc");
 
 	glc_compute_threads_hint(&mpriv.glc);
