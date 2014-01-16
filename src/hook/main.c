@@ -102,8 +102,8 @@ void init_glc()
 {
 	struct sigaction new_sighandler, old_sighandler;
 	int ret;
-	mpriv.flags = MAIN_COMPRESS_LZO;
-	mpriv.capture = 0;
+	mpriv.flags     = 0;
+	mpriv.capture   = 0;
 	mpriv.stop_time = 0;
 	mpriv.stream_file = NULL;
 	mpriv.stream_file_fmt = "%app%-%pid%-%capture%.glc";
@@ -162,22 +162,23 @@ err:
 int load_environ()
 {
 	char *log_file;
+	char *env_val;
 
-	if (getenv("GLC_START")) {
-		if (atoi(getenv("GLC_START")))
+	if ((env_val = getenv("GLC_START"))) {
+		if (atoi(env_val))
 			mpriv.flags |= MAIN_START;
 	}
 
-	if (getenv("GLC_FILE"))
-		mpriv.stream_file_fmt = getenv("GLC_FILE");
+	if ((env_val = getenv("GLC_FILE")))
+		mpriv.stream_file_fmt = env_val;
 
-	if (getenv("GLC_LOG"))
-		glc_log_set_level(&mpriv.glc, atoi(getenv("GLC_LOG")));
+	if ((env_val = getenv("GLC_LOG")))
+		glc_log_set_level(&mpriv.glc, atoi(env_val));
 
-	if (getenv("GLC_LOG_FILE")) {
+	if ((env_val = getenv("GLC_LOG_FILE"))) {
 		/* limit log file name to 1023 chars. */
 		log_file = malloc(1024);
-		snprintf(log_file, 1024, getenv("GLC_LOG_FILE"), getpid());
+		snprintf(log_file, 1024, env_val, getpid());
 		log_file[1023] = '\0';
 
 		glc_log_open_file(&mpriv.glc, log_file);
@@ -186,34 +187,37 @@ int load_environ()
 	}
 
 	mpriv.sighandler = 0;
-	if (getenv("GLC_SIGHANDLER"))
-		mpriv.sighandler = atoi(getenv("GLC_SIGHANDLER"));
+	if ((env_val = getenv("GLC_SIGHANDLER")))
+		mpriv.sighandler = atoi(env_val);
 
-	if (getenv("GLC_SYNC")) {
-		if (atoi(getenv("GLC_SYNC")))
+	if ((env_val = getenv("GLC_SYNC"))) {
+		if (atoi(env_val))
 			mpriv.flags |= MAIN_SYNC;
 	}
 
 	mpriv.uncompressed_size = 1024 * 1024 * 25;
-	if (getenv("GLC_UNCOMPRESSED_BUFFER_SIZE"))
-		mpriv.uncompressed_size = atoi(getenv("GLC_UNCOMPRESSED_BUFFER_SIZE")) * 1024 * 1024;
+	if ((env_val = getenv("GLC_UNCOMPRESSED_BUFFER_SIZE")))
+		mpriv.uncompressed_size = atoi(env_val) * 1024 * 1024;
 
 	mpriv.compressed_size = 1024 * 1024 * 50;
-	if (getenv("GLC_COMPRESSED_BUFFER_SIZE"))
-		mpriv.compressed_size = atoi(getenv("GLC_COMPRESSED_BUFFER_SIZE")) * 1024 * 1024;
+	if ((env_val = getenv("GLC_COMPRESSED_BUFFER_SIZE")))
+		mpriv.compressed_size = atoi(env_val) * 1024 * 1024;
 
-	if (getenv("GLC_COMPRESS")) {
-		if (!strcmp(getenv("GLC_COMPRESS"), "lzo"))
+	if ((env_val = getenv("GLC_COMPRESS"))) {
+		if (!strcmp(env_val, "lzo"))
 			mpriv.flags |= MAIN_COMPRESS_LZO;
-		else if (!strcmp(getenv("GLC_COMPRESS"), "quicklz"))
+		else if (!strcmp(env_val, "quicklz"))
 			mpriv.flags |= MAIN_COMPRESS_QUICKLZ;
-		else if (!strcmp(getenv("GLC_COMPRESS"), "lzjb"))
+		else if (!strcmp(env_val, "lzjb"))
 			mpriv.flags |= MAIN_COMPRESS_LZJB;
 		else
 			mpriv.flags |= MAIN_COMPRESS_NONE;
-	}
+	} else
+		mpriv.flags |= MAIN_COMPRESS_LZO;
 
 	glc_account_threads(&mpriv.glc,1,!(mpriv.flags & MAIN_COMPRESS_NONE));
+
+	glc_log(&mpriv.glc, GLC_DEBUG, "main", "flags: %08X", mpriv.flags);
 
 	return 0;
 }
