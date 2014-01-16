@@ -168,7 +168,7 @@ void glc_log_write_prefix(glc_t *glc, FILE *stream, int level, const char *modul
 	}
 
 	fprintf(stream, "[%7.2fs %10s %5s ] ",
-		(double) glc_time(glc) / 1000000.0, module, level_str);
+		(double) glc_time(glc) / 1000000000.0, module, level_str);
 }
 
 /**  \} */
