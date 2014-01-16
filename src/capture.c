@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
 	for (optind = 1; optind < argc;) {
 		/* test if this is --version */
 		if ((!strcmp("--version", argv[optind])) | (!strcmp("-V", argv[optind]))) {
-			printf("glc version %s\n", glc_version());
+			printf("glcs version %s\n", glc_version());
 			dlclose(handle);
 			return EXIT_SUCCESS;
 		}
@@ -209,18 +209,16 @@ int env_append(const char *env, const char *val, char separator)
 	if (old_env != NULL) {
 		env_len = strlen(old_env) + strlen(val) + 2;
 		new_env = malloc(env_len);
-		
+
 		memcpy(new_env, old_env, strlen(old_env));
-		memcpy(&new_env[strlen(old_env) + 1], val, strlen(val));
-		
+		memcpy(&new_env[strlen(old_env) + 1], val, strlen(val) + 1);
+
 		new_env[strlen(old_env)] = separator;
-		new_env[env_len - 1] = '\0';
 	} else {
 		env_len = strlen(val) + 1;
 		new_env = malloc(env_len);
 
-		memcpy(new_env, val, env_len - 1);
-		new_env[env_len - 1] = '\0';
+		memcpy(new_env, val, env_len);
 	}
 
 	setenv(env, new_env, 1);

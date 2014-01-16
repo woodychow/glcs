@@ -135,7 +135,7 @@ void glc_compute_threads_hint(glc_t *glc)
 	if (unlikely(glc->core->threads_hint <  1))
 		glc->core->threads_hint = 1;
 	glc_log(glc, GLC_INFORMATION, "core",
-		"single process num %ld multi process num %d threads num per multi process",
+		"single proc num %ld multi proc num %d, threads num per multi proc %d",
 		glc->core->single_process_num, glc->core->multi_process_num,
 		glc->core->threads_hint);
 }

@@ -893,7 +893,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	video->num_frames++;
 	now = glc_state_time(gl_capture->glc);
 
-	if (unlikeky((gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
+	if (unlikely((gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
 	    !(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))) {
 		if (now - video->last < gl_capture->fps) {
 			struct timespec ts = { .tv_sec  = (gl_capture->fps + video->last - now)/1000000000,
