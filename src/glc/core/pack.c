@@ -67,18 +67,27 @@
 # include <lzjb.h>
 #endif
 
+struct pack_stat_s {
+	uint64_t pack_size;
+	uint64_t unpack_size;
+};
+
+typedef struct pack_stat_s pack_stat_t;
+
 struct pack_s {
 	glc_t *glc;
 	glc_thread_t thread;
 	size_t compress_min;
 	int running;
 	int compression;
+	pack_stat_t stats;
 };
 
 struct unpack_s {
 	glc_t *glc;
 	glc_thread_t thread;
 	int running;
+	pack_stat_t stats;
 };
 
 static int pack_thread_create_callback(void *ptr, void **threadptr);
@@ -92,9 +101,15 @@ static void pack_finish_callback(void *ptr, int err);
 static int unpack_read_callback(glc_thread_state_t *state);
 static int unpack_write_callback(glc_thread_state_t *state);
 static void unpack_finish_callback(void *ptr, int err);
+static void print_stats(glc_t *glc, pack_stat_t *stat);
 
 int pack_init(pack_t *pack, glc_t *glc)
 {
+#if !defined(__QUICKLZ) && !defined(__LZO) && !defined(__LZJB)
+	glc_log(glc, GLC_ERROR, "pack",
+		 "no supported compression algorithms found");
+	return ENOTSUP;
+#else
 	*pack = (pack_t) calloc(1, sizeof(struct pack_s));
 
 	(*pack)->glc = glc;
@@ -108,19 +123,8 @@ int pack_init(pack_t *pack, glc_t *glc)
 	(*pack)->thread.finish_callback = &pack_finish_callback;
 	(*pack)->thread.threads = glc_threads_hint(glc);
 
-#ifdef __QUICKLZ
-	pack_set_compression(*pack, PACK_QUICKLZ);
-#elif defined __LZO
-	pack_set_compression(*pack, PACK_LZO);
-#elif defined __LZJB
-	pack_set_compression(*pack, PACK_LZJB);
-#else
-	glc_log((*pack)->glc, GLC_ERROR, "pack",
-		 "no supported compression algorithms found");
-	return ENOTSUP;
-#endif
-
 	return 0;
+#endif
 }
 
 int pack_set_compression(pack_t pack, int compression)
@@ -188,6 +192,12 @@ int pack_process_start(pack_t pack, ps_buffer_t *from, ps_buffer_t *to)
 	if (unlikely(pack->running))
 		return EAGAIN;
 
+	if (unlikely(!pack->compression)) {
+		glc_log(pack->glc, GLC_ERROR, "pack",
+			"attempt to start pack before setting the compression");
+		return EINVAL;
+	}
+
 	if (unlikely((ret = glc_thread_create(pack->glc, &pack->thread, from, to))))
 		return ret;
 	pack->running = 1;
@@ -208,6 +218,7 @@ int pack_process_wait(pack_t pack)
 
 int pack_destroy(pack_t pack)
 {
+	print_stats(pack->glc,&pack->stats);
 	free(pack);
 	return 0;
 }
@@ -246,6 +257,8 @@ int pack_read_callback(glc_thread_state_t *state)
 {
 	pack_t pack = (pack_t) state->ptr;
 
+	__sync_fetch_and_add(&pack->stats.unpack_size, state->read_size);
+
 	/* compress only audio and pictures */
 	if ((state->read_size > pack->compress_min) &&
 	    ((state->header.type == GLC_MESSAGE_VIDEO_FRAME) ||
@@ -280,6 +293,7 @@ int pack_read_callback(glc_thread_state_t *state)
 		return 0;
 	}
 copy:
+	__sync_fetch_and_add(&pack->stats.pack_size, state->read_size);
 	state->flags |= GLC_THREAD_COPY;
 	return 0;
 }
@@ -304,6 +318,9 @@ int pack_lzo_write_callback(glc_thread_state_t *state)
 	container->header.type = GLC_MESSAGE_LZO;
 
 	state->header.type = GLC_MESSAGE_CONTAINER;
+
+	__sync_fetch_and_add(&((pack_t) state->ptr)->stats.pack_size,
+				compressed_size);
 
 	return 0;
 #else
@@ -333,6 +350,9 @@ int pack_quicklz_write_callback(glc_thread_state_t *state)
 
 	state->header.type = GLC_MESSAGE_CONTAINER;
 
+	__sync_fetch_and_add(&((pack_t) state->ptr)->stats.pack_size,
+				compressed_size);
+
 	return 0;
 #else
 	return ENOTSUP;
@@ -358,6 +378,9 @@ int pack_lzjb_write_callback(glc_thread_state_t *state)
 	container->header.type = GLC_MESSAGE_LZJB;
 
 	state->header.type = GLC_MESSAGE_CONTAINER;
+
+	__sync_fetch_and_add(&((pack_t) state->ptr)->stats.pack_size,
+				compressed_size);
 
 	return 0;
 #else
@@ -411,6 +434,7 @@ int unpack_process_wait(unpack_t unpack)
 
 int unpack_destroy(unpack_t unpack)
 {
+	print_stats(unpack->glc, &unpack->stats);
 	free(unpack);
 	return 0;
 }
@@ -425,12 +449,14 @@ void unpack_finish_callback(void *ptr, int err)
 
 int unpack_read_callback(glc_thread_state_t *state)
 {
+	unpack_t unpack = (unpack_t) state->ptr;
+
 	if (state->header.type == GLC_MESSAGE_LZO) {
 #ifdef __LZO
 		state->write_size = ((glc_lzo_header_t *) state->read_data)->size;
 		return 0;
 #else
-		glc_log(((unpack_t) state->ptr)->glc,
+		glc_log(unpack->glc,
 			 GLC_ERROR, "unpack", "LZO not supported");
 		return ENOTSUP;
 #endif
@@ -439,7 +465,7 @@ int unpack_read_callback(glc_thread_state_t *state)
 		state->write_size = ((glc_quicklz_header_t *) state->read_data)->size;
 		return 0;
 #else
-		glc_log(((unpack_t) state->ptr)->glc,
+		glc_log(unpack->glc,
 			 GLC_ERROR, "unpack", "QuickLZ not supported");
 		return ENOTSUP;
 #endif
@@ -448,20 +474,24 @@ int unpack_read_callback(glc_thread_state_t *state)
 		state->write_size = ((glc_lzjb_header_t *) state->read_data)->size;
 		return 0;
 #else
-		glc_log(((unpack_t) state->ptr)->glc,
+		glc_log(unpack->glc,
 			GLC_ERROR, "unpack", "LZJB not supported");
 		return ENOTSUP;
 #endif
 	}
-
+	__sync_fetch_and_add(&unpack->stats.pack_size, state->read_size);
+	__sync_fetch_and_add(&unpack->stats.unpack_size, state->read_size);
 	state->flags |= GLC_THREAD_COPY;
 	return 0;
 }
 
 int unpack_write_callback(glc_thread_state_t *state)
 {
+	unpack_t unpack = (unpack_t) state->ptr;
+
 	if (state->header.type == GLC_MESSAGE_LZO) {
 #ifdef __LZO
+		__sync_fetch_and_add(&unpack->stats.pack_size, state->read_size - sizeof(glc_lzo_header_t));
 		memcpy(&state->header, &((glc_lzo_header_t *) state->read_data)->header,
 		       sizeof(glc_message_header_t));
 		__lzo_decompress((unsigned char *) &state->read_data[sizeof(glc_lzo_header_t)],
@@ -474,6 +504,7 @@ int unpack_write_callback(glc_thread_state_t *state)
 #endif
 	} else if (state->header.type == GLC_MESSAGE_QUICKLZ) {
 #ifdef __QUICKLZ
+		__sync_fetch_and_add(&unpack->stats.pack_size, state->read_size - sizeof(glc_quicklz_header_t));
 		memcpy(&state->header, &((glc_quicklz_header_t *) state->read_data)->header,
 		       sizeof(glc_message_header_t));
 		quicklz_decompress((const unsigned char *) &state->read_data[sizeof(glc_quicklz_header_t)],
@@ -484,6 +515,7 @@ int unpack_write_callback(glc_thread_state_t *state)
 #endif
 	} else if (state->header.type == GLC_MESSAGE_LZJB) {
 #ifdef __LZJB
+		__sync_fetch_and_add(&unpack->stats.pack_size, state->read_size - sizeof(glc_lzjb_header_t));
 		memcpy(&state->header, &((glc_quicklz_header_t *) state->read_data)->header,
 		       sizeof(glc_message_header_t));
 		lzjb_decompress(&state->read_data[sizeof(glc_lzjb_header_t)],
@@ -495,8 +527,21 @@ int unpack_write_callback(glc_thread_state_t *state)
 #endif
 	} else
 		return ENOTSUP;
-
+	__sync_fetch_and_add(&unpack->stats.unpack_size, state->write_size);
 	return 0;
+}
+
+void print_stats(glc_t *glc, pack_stat_t *stat)
+{
+	double ratio;
+	if (!stat->unpack_size)
+		ratio = 0.0;
+	else
+		ratio = (double)stat->pack_size/(double)stat->unpack_size;
+
+	glc_log(glc, GLC_PERFORMANCE, "pack",
+		"unpack_size: %llu pack_size: %llu %remn: %.1f",
+		stat->unpack_size, stat->pack_size, ratio*100);
 }
 
 /**  \} */

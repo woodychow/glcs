@@ -316,6 +316,11 @@ int file_write_state_callback(glc_message_header_t *header, void *message, size_
 	return file_write_message(file, header, message, message_size);
 }
 
+/*
+ * Allow to create a self contained glc file after reloading the capture since
+ * format messages are generated only once by capture modules at the beginning
+ * of the initial capture session.
+ */
 int file_write_state(file_t file)
 {
 	int ret;
@@ -614,7 +619,7 @@ int file_read(file_t file, ps_buffer_t *to)
 					packet_size, PS_ACCEPT_FAKE_DMA))))
 			goto err;
 
-		if (unlikely(fread_unlocked(dma, packet_size, 1, file->handle) != 1))
+		if (unlikely(fread_unlocked(dma, 1, packet_size, file->handle) != packet_size))
 			goto read_fail;
 
 		if (unlikely(file->stream_version < 0x05)) {
@@ -653,6 +658,8 @@ send_eof:
 
 read_fail:
 	ret = EBADMSG;
+	glc_log(file->glc, GLC_ERROR, "file", "read_file while reading a packet type %s (%d) at offset %ld",
+		glc_util_msgtype_to_str(header.type), header.type, ftell(file->handle));
 err:
 	if (ret == EINTR)
 		goto finish; /* just cancel */

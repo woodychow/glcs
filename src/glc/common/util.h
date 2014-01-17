@@ -129,6 +129,7 @@ __PUBLIC int glc_util_setflag( int fd, int flag );
 __PUBLIC int glc_util_clearflag( int fd, int flag );
 __PUBLIC int glc_util_set_nonblocking(int fd);
 __PUBLIC void glc_util_empty_pipe(int fd);
+__PUBLIC const char *glc_util_msgtype_to_str(glc_message_type_t type);
 
 #ifdef __cplusplus
 }

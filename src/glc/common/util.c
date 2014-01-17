@@ -355,4 +355,49 @@ void glc_util_empty_pipe(int fd)
 	while (read(fd,buf,256) > 0);
 }
 
+const char *glc_util_msgtype_to_str(glc_message_type_t type)
+{
+	const char *res;
+	switch(type)
+	{
+	case GLC_MESSAGE_CLOSE:
+		res = "GLC_MESSAGE_CLOSE";
+		break;
+	case GLC_MESSAGE_VIDEO_FRAME:
+		res = "GLC_MESSAGE_VIDEO_FRAME";
+		break;
+	case GLC_MESSAGE_VIDEO_FORMAT:
+		res = "GLC_MESSAGE_VIDEO_FORMAT";
+		break;
+	case GLC_MESSAGE_LZO:
+		res = "GLC_MESSAGE_LZO";
+		break;
+	case GLC_MESSAGE_AUDIO_FORMAT:
+		res = "GLC_MESSAGE_AUDIO_FORMAT";
+		break;
+	case GLC_MESSAGE_AUDIO_DATA:
+		res = "GLC_MESSAGE_AUDIO_DATA";
+		break;
+	case GLC_MESSAGE_QUICKLZ:
+		res = "GLC_MESSAGE_QUICKLZ";
+		break;
+	case GLC_MESSAGE_COLOR:
+		res = "GLC_MESSAGE_COLOR";
+		break;
+	case GLC_MESSAGE_CONTAINER:
+		res = "GLC_MESSAGE_CONTAINER";
+		break;
+	case GLC_MESSAGE_LZJB:
+		res = "GLC_MESSAGE_LZJB";
+		break;
+	case GLC_CALLBACK_REQUEST:
+		res = "GLC_CALLBACK_REQUEST";
+		break;
+	default:
+		res = "unknown";
+		break;
+	}
+	return res;
+}
+
 /**  \} */
