@@ -61,6 +61,7 @@
 
 #ifdef __QUICKLZ
 # include <quicklz.h>
+#define __quicklz_worstcase(size) size + 400
 #endif
 
 #ifdef __LZJB
@@ -98,6 +99,7 @@ static int pack_lzo_write_callback(glc_thread_state_t *state);
 static int pack_lzjb_write_callback(glc_thread_state_t *state);
 static void pack_finish_callback(void *ptr, int err);
 
+static void unpack_thread_finish_callback(void *ptr, void *threadptr, int err);
 static int unpack_read_callback(glc_thread_state_t *state);
 static int unpack_write_callback(glc_thread_state_t *state);
 static void unpack_finish_callback(void *ptr, int err);
@@ -237,7 +239,7 @@ int pack_thread_create_callback(void *ptr, void **threadptr)
 
 	if (pack->compression == PACK_QUICKLZ) {
 #ifdef __QUICKLZ
-		*threadptr = malloc(__quicklz_hashtable);
+		*threadptr = malloc(sizeof(qlz_state_compress));
 #endif
 	} else if (pack->compression == PACK_LZO) {
 #ifdef __LZO
@@ -334,13 +336,12 @@ int pack_quicklz_write_callback(glc_thread_state_t *state)
 	glc_container_message_header_t *container = (glc_container_message_header_t *) state->write_data;
 	glc_quicklz_header_t *quicklz_header =
 		(glc_quicklz_header_t *) &state->write_data[sizeof(glc_container_message_header_t)];
-	size_t compressed_size;
-
-	quicklz_compress((const unsigned char *) state->read_data,
-			 (unsigned char *) &state->write_data[sizeof(glc_quicklz_header_t) +
-			 				      sizeof(glc_container_message_header_t)],
-			 state->read_size, &compressed_size,
-			 (uintptr_t *) state->threadptr);
+	size_t compressed_size =
+	qlz_compress((const void *) state->read_data,
+			(void *) &state->write_data[sizeof(glc_quicklz_header_t) +
+			 			    sizeof(glc_container_message_header_t)],
+			 state->read_size,
+			 (qlz_state_compress *) state->threadptr);
 
 	quicklz_header->size = (glc_size_t) state->read_size;
 	memcpy(&quicklz_header->header, &state->header, sizeof(glc_message_header_t));
@@ -396,6 +397,7 @@ int unpack_init(unpack_t *unpack, glc_t *glc)
 
 	(*unpack)->thread.flags = GLC_THREAD_WRITE | GLC_THREAD_READ;
 	(*unpack)->thread.ptr = *unpack;
+	(*unpack)->thread.thread_finish_callback = &unpack_thread_finish_callback;
 	(*unpack)->thread.read_callback = &unpack_read_callback;
 	(*unpack)->thread.write_callback = &unpack_write_callback;
 	(*unpack)->thread.finish_callback = &unpack_finish_callback;
@@ -445,6 +447,11 @@ void unpack_finish_callback(void *ptr, int err)
 
 	if (unlikely(err))
 		glc_log(unpack->glc, GLC_ERROR, "unpack", "%s (%d)", strerror(err), err);
+}
+
+void unpack_thread_finish_callback(void *ptr, void *threadptr, int err)
+{
+	free(threadptr);
 }
 
 int unpack_read_callback(glc_thread_state_t *state)
@@ -504,12 +511,15 @@ int unpack_write_callback(glc_thread_state_t *state)
 #endif
 	} else if (state->header.type == GLC_MESSAGE_QUICKLZ) {
 #ifdef __QUICKLZ
-		__sync_fetch_and_add(&unpack->stats.pack_size, state->read_size - sizeof(glc_quicklz_header_t));
+		__sync_fetch_and_add(&unpack->stats.pack_size,
+					state->read_size - sizeof(glc_quicklz_header_t));
 		memcpy(&state->header, &((glc_quicklz_header_t *) state->read_data)->header,
 		       sizeof(glc_message_header_t));
-		quicklz_decompress((const unsigned char *) &state->read_data[sizeof(glc_quicklz_header_t)],
-				   (unsigned char *) state->write_data,
-				   state->write_size);
+		if (!state->threadptr)
+			state->threadptr = malloc(sizeof(qlz_state_decompress));
+		qlz_decompress((const void *) &state->read_data[sizeof(glc_quicklz_header_t)],
+				(void *) state->write_data,
+				(qlz_state_decompress *) state->threadptr);
 #else
 		return ENOTSUP;
 #endif
