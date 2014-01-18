@@ -70,6 +70,34 @@ struct demux_audio_stream_s {
 	struct demux_audio_stream_s *next;
 };
 
+/*
+ * Experimental video filter.
+ *
+ * The idea is to demux stream types
+ * as soon as possible to avoid having audio
+ * packets being copied and processed by 3 layers
+ * of video filters.
+ *
+ * The drawback of the idea, is that it introduce a new
+ * buffer object where video frames will be copied to/from
+ * buffer.
+ *
+ * Since video data is probably much greater than 3 times
+ * the amount of audio data, the price is probably higher
+ * than the received gains.
+ *
+ * Just keeping the code around since it could be useful
+ * for other things eventually.
+ */
+struct demux_video_filter_s {
+	pthread_t thread;
+	int running;
+
+	ps_packet_t packet;
+	ps_buffer_t *in;
+	ps_buffer_t *out;
+};
+
 struct demux_s {
 	glc_t *glc;
 	ps_buffer_t *from;
@@ -84,11 +112,19 @@ struct demux_s {
 
 	struct demux_video_stream_s *video;
 	struct demux_audio_stream_s *audio;
+
+	struct demux_video_filter_s *vfilter;
 };
 
-static int demux_close(demux_t demux);
+static int demux_vfilter_start(demux_t demux);
+static int demux_vfilter_close(demux_t demux);
+static void *vfilter_thread(void *argptr);
 static void *demux_thread(void *argptr);
 
+static int demux_send(ps_packet_t *packet,
+		      glc_message_header_t *header, char *data, size_t size);
+static int demux_video_filter_message(demux_t demux, glc_message_header_t *header,
+			       char *data, size_t size);
 static int demux_video_stream_message(demux_t demux, glc_message_header_t *header,
 			       char *data, size_t size);
 static int demux_video_stream_get(demux_t demux, glc_stream_id_t id,
@@ -125,6 +161,11 @@ int demux_init(demux_t *demux, glc_t *glc)
 
 int demux_destroy(demux_t demux)
 {
+	if (demux->vfilter) {
+		ps_packet_destroy(&demux->vfilter->packet);
+		free(demux->vfilter);
+		demux->vfilter = NULL;
+	}
 	ps_bufferattr_destroy(&demux->video_bufferattr);
 	ps_bufferattr_destroy(&demux->audio_bufferattr);
 	free(demux);
@@ -148,6 +189,20 @@ int demux_set_alsa_playback_device(demux_t demux, const char *device)
 	return 0;
 }
 
+int demux_insert_video_filter(demux_t demux, ps_buffer_t *in, ps_buffer_t *out)
+{
+	if (unlikely(!demux || !in || !out))
+		return EINVAL;
+
+	if (demux->vfilter)
+		return EAGAIN;
+
+	demux->vfilter = (struct demux_video_filter_s *)calloc(1, sizeof(struct demux_video_filter_s));
+	demux->vfilter->in  = in;
+	demux->vfilter->out = out;
+	return ps_packet_init(&demux->vfilter->packet, demux->vfilter->in);
+}
+
 int demux_process_start(demux_t demux, ps_buffer_t *from)
 {
 	int ret;
@@ -164,6 +219,23 @@ int demux_process_start(demux_t demux, ps_buffer_t *from)
 	return ret;
 }
 
+int demux_vfilter_start(demux_t demux)
+{
+	int ret;
+	if (!demux->vfilter)
+		return 0;
+
+	if (unlikely(demux->vfilter->running))
+		return EAGAIN;
+
+	ret = pthread_create(&demux->vfilter->thread, NULL, vfilter_thread, demux);
+
+	if (likely(!ret))
+		demux->vfilter->running = 1;
+
+	return ret;
+}
+
 int demux_process_wait(demux_t demux)
 {
 	if (unlikely(!demux->running))
@@ -175,20 +247,14 @@ int demux_process_wait(demux_t demux)
 	return 0;
 }
 
-int demux_close(demux_t demux)
+int demux_vfilter_close(demux_t demux)
 {
-	int ret = 0;
+	if (!demux->vfilter)
+		return 0;
 
-	if (demux->video != NULL) {
-		if ((ret = demux_video_stream_close(demux)))
-			glc_log(demux->glc, GLC_ERROR, "demux", "can't close video streams: %s (%d)",
-				 strerror(ret), ret);
-	}
-
-	if (demux->audio != NULL) {
-		if ((ret = demux_audio_stream_close(demux)))
-			glc_log(demux->glc, GLC_ERROR, "demux", "can't close audio streams: %s (%d)",
-				 strerror(ret), ret);
+	if (likely(demux->vfilter->running)) {
+		pthread_join(demux->vfilter->thread, NULL);
+		demux->vfilter->running = 0;
 	}
 
 	return 0;
@@ -200,11 +266,14 @@ void *demux_thread(void *argptr)
 	glc_message_header_t msg_hdr;
 	size_t data_size;
 	char *data;
-	int ret = 0;
+	int ret;
 
 	ps_packet_t read;
 
 	glc_util_block_signals();
+
+	if (unlikely((ret = demux_vfilter_start(demux))))
+		goto err;
 
 	if (unlikely((ret = ps_packet_init(&read, demux->from))))
 		goto err;
@@ -221,11 +290,15 @@ void *demux_thread(void *argptr)
 		if (unlikely((ret = ps_packet_dma(&read, (void *) &data, data_size, PS_ACCEPT_FAKE_DMA))))
 			goto err;
 
-		if ((msg_hdr.type == GLC_MESSAGE_CLOSE) ||
+		if ((msg_hdr.type == GLC_MESSAGE_CLOSE)       ||
 		    (msg_hdr.type == GLC_MESSAGE_VIDEO_FRAME) ||
 		    (msg_hdr.type == GLC_MESSAGE_VIDEO_FORMAT)) {
-			/* handle msg to gl_play */
-			demux_video_stream_message(demux, &msg_hdr, data, data_size);
+			if (!demux->vfilter) {
+				/* handle msg to gl_play */
+				demux_video_stream_message(demux, &msg_hdr, data, data_size);
+			} else {
+				demux_video_filter_message(demux, &msg_hdr, data, data_size);
+			}
 		}
 
 		if ((msg_hdr.type == GLC_MESSAGE_CLOSE) ||
@@ -245,10 +318,57 @@ finish:
 	if (glc_state_test(demux->glc, GLC_STATE_CANCEL))
 		ps_buffer_cancel(demux->from);
 
+	demux_vfilter_close(demux);
 	demux_video_stream_close(demux);
 	demux_audio_stream_close(demux);
+	return NULL;
+err:
+	if (ret != EINTR) {
+		glc_log(demux->glc, GLC_ERROR, "demux", "%s (%d)", strerror(ret), ret);
+		glc_state_set(demux->glc, GLC_STATE_CANCEL);
+	}
+	goto finish;
+}
 
-	demux_close(demux);
+void *vfilter_thread(void *argptr)
+{
+	demux_t demux = (demux_t ) argptr;
+	glc_message_header_t msg_hdr;
+	size_t data_size;
+	char *data;
+	int ret;
+
+	ps_packet_t read;
+
+	glc_util_block_signals();
+
+	if (unlikely((ret = ps_packet_init(&read, demux->vfilter->out))))
+		goto err;
+
+	do {
+		if (unlikely((ret = ps_packet_open(&read, PS_PACKET_READ))))
+			goto err;
+
+		if (unlikely((ret = ps_packet_read(&read, &msg_hdr, sizeof(glc_message_header_t)))))
+			goto err;
+		if (unlikely((ret = ps_packet_getsize(&read, &data_size))))
+			goto err;
+		data_size -= sizeof(glc_message_header_t);
+		if (unlikely((ret = ps_packet_dma(&read, (void *) &data, data_size, PS_ACCEPT_FAKE_DMA))))
+			goto err;
+
+		demux_video_stream_message(demux, &msg_hdr, data, data_size);
+
+		ps_packet_close(&read);
+	} while ((!glc_state_test(demux->glc, GLC_STATE_CANCEL)) &&
+		 (msg_hdr.type != GLC_MESSAGE_CLOSE));
+
+finish:
+	ps_packet_destroy(&read);
+
+	if (glc_state_test(demux->glc, GLC_STATE_CANCEL))
+		ps_buffer_cancel(demux->vfilter->out);
+
 	return NULL;
 err:
 	if (ret != EINTR) {
@@ -292,20 +412,36 @@ int demux_video_stream_message(demux_t demux, glc_message_header_t *header,
 	return ret;
 }
 
+int demux_send(ps_packet_t *packet,
+		glc_message_header_t *header, char *data, size_t size)
+{
+	int ret;
+	if (unlikely((ret = ps_packet_open(packet, PS_PACKET_WRITE))))
+		return ret;
+	if (unlikely((ret = ps_packet_write(packet, header, sizeof(glc_message_header_t)))))
+		return ret;
+	if (unlikely((ret = ps_packet_write(packet, data, size))))
+		return ret;
+	return  ps_packet_close(packet);
+}
+
+int demux_video_filter_message(demux_t demux, glc_message_header_t *header,
+			       char *data, size_t size)
+{
+	int ret = demux_send(&demux->vfilter->packet, header, data, size);
+	if (likely(ret != EINTR))
+		return ret;
+
+	/* since it is EINTR, _cancel() is already done */
+	glc_log(demux->glc, GLC_DEBUG, "demux", "video filter has quit");
+	return 0;
+}
+
 int demux_video_stream_send(demux_t demux, struct demux_video_stream_s *video,
 			 glc_message_header_t *header, char *data, size_t size)
 {
-	int ret;
-	if (unlikely((ret = ps_packet_open(&video->packet, PS_PACKET_WRITE))))
-		goto err;
-	if (unlikely((ret = ps_packet_write(&video->packet, header, sizeof(glc_message_header_t)))))
-		goto err;
-	if (unlikely((ret = ps_packet_write(&video->packet, data, size))))
-		goto err;
-	if (unlikely((ret = ps_packet_close(&video->packet))))
-		goto err;
-err:
-	if (ret != EINTR)
+	int ret = demux_send(&video->packet, header, data, size);
+	if (likely(ret != EINTR))
 		return ret;
 
 	/* since it is EINTR, _cancel() is already done */
@@ -478,17 +614,8 @@ int demux_audio_stream_get(demux_t demux, glc_stream_id_t id,
 int demux_audio_stream_send(demux_t demux, struct demux_audio_stream_s *audio,
 			 glc_message_header_t *header, char *data, size_t size)
 {
-	int ret;
-	if (unlikely((ret = ps_packet_open(&audio->packet, PS_PACKET_WRITE))))
-		goto err;
-	if (unlikely((ret = ps_packet_write(&audio->packet, header, sizeof(glc_message_header_t)))))
-		goto err;
-	if (unlikely((ret = ps_packet_write(&audio->packet, data, size))))
-		goto err;
-	if (unlikely((ret = ps_packet_close(&audio->packet))))
-		goto err;
-err:
-	if (ret != EINTR)
+	int ret = demux_send(&audio->packet, header, data, size);
+	if (likely(ret != EINTR))
 		return ret;
 
 	glc_log(demux->glc, GLC_DEBUG, "demux", "audio stream %d has quit", audio->id);

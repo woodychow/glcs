@@ -94,6 +94,12 @@ __PUBLIC int demux_process_start(demux_t demux, ps_buffer_t *from);
  */
 __PUBLIC int demux_process_wait(demux_t demux);
 
+/**
+ * demux as soon as possible to not disturb with audio packets processes
+ * only interested video packets
+ */
+__PUBLIC int demux_insert_video_filter(demux_t demux, ps_buffer_t *in, ps_buffer_t *out);
+
 #ifdef __cplusplus
 }
 #endif

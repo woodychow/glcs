@@ -163,11 +163,10 @@ int rgb_process_start(rgb_t rgb, ps_buffer_t *from, ps_buffer_t *to)
 	if (unlikely(rgb->running))
 		return EAGAIN;
 
-	if (unlikely((ret = glc_thread_create(rgb->glc, &rgb->thread, from, to))))
-		return ret;
-	rgb->running = 1;
+	if (likely(!(ret = glc_thread_create(rgb->glc, &rgb->thread, from, to))))
+		rgb->running = 1;
 
-	return 0;
+	return ret;
 }
 
 int rgb_process_wait(rgb_t rgb)

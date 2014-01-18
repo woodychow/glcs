@@ -424,6 +424,13 @@ static void destroy_buffers(ps_buffer_t *buffer_arr, unsigned nm)
 #define ycbcr_buffer        buffer_arr[2]
 #define color_buffer        buffer_arr[3]
 #define scale_buffer        buffer_arr[4]
+#define vfilter_in_buffer   buffer_arr[5]
+
+/*
+ * Undef to use the video filter.
+ * See comments in glc/play/demux.c to find what this is.
+ */
+//#define USE_VFILTER
 
 int play_stream(struct play_s *play)
 {
@@ -441,10 +448,13 @@ int play_stream(struct play_s *play)
 	 threads. Packet order in stream is preserved. Demux creates
 	 separate buffer and _play handler for each video/audio stream.
 	*/
-
+#ifndef USE_VFILTER
 	ps_buffer_t buffer_arr[5];
 	unsigned nm_arr[BUFFER_SIZE_ARR_SZ] = {1, 4};
-
+#else
+	ps_buffer_t buffer_arr[6];
+	unsigned nm_arr[BUFFER_SIZE_ARR_SZ] = {1, 5};
+#endif
 	demux_t demux;
 	color_t color;
 	scale_t scale;
@@ -480,16 +490,24 @@ int play_stream(struct play_s *play)
 	demux_set_alsa_playback_device(demux, play->alsa_playback_device);
 
 	/* construct a pipeline for playback */
+#ifndef USE_VFILTER
+	if (unlikely((ret = rgb_process_start(rgb, &uncompressed_buffer, &rgb_buffer))))
+		goto err;
+	if (unlikely((ret = demux_process_start(demux, &color_buffer))))
+		goto err;
+#else
+	demux_insert_video_filter(demux, &vfilter_in_buffer, &color_buffer);
+	if (unlikely((ret = rgb_process_start(rgb, &vfilter_in_buffer, &rgb_buffer))))
+		goto err;
+	if (unlikely((ret = demux_process_start(demux, &uncompressed_buffer))))
+		goto err;
+#endif
 	if (unlikely((ret = unpack_process_start(unpack, &compressed_buffer,
 						&uncompressed_buffer))))
-		goto err;
-	if (unlikely((ret = rgb_process_start(rgb, &uncompressed_buffer, &rgb_buffer))))
 		goto err;
 	if (unlikely((ret = scale_process_start(scale, &rgb_buffer, &scale_buffer))))
 		goto err;
 	if (unlikely((ret = color_process_start(color, &scale_buffer, &color_buffer))))
-		goto err;
-	if (unlikely((ret = demux_process_start(demux, &color_buffer))))
 		goto err;
 
 	/* the pipeline is ready - lets give it some data */
