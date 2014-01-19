@@ -123,8 +123,6 @@ __PUBLIC char *glc_util_str_replace(const char *str, const char *find, const cha
  */
 __PUBLIC char *glc_util_format_filename(const char *fmt, unsigned int capture);
 
-__PUBLIC int glc_util_block_signals(void);
-
 __PUBLIC int glc_util_setflag( int fd, int flag );
 __PUBLIC int glc_util_clearflag( int fd, int flag );
 __PUBLIC int glc_util_set_nonblocking(int fd);

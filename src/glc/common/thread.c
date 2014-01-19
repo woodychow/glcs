@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <signal.h>
 #include <unistd.h>
 #include <packetstream.h>
 #include <errno.h>
@@ -61,6 +62,7 @@ struct glc_thread_private_s {
 };
 
 static void *glc_thread(void *argptr);
+static int glc_thread_block_signals(void);
 
 int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_buffer_t *to)
 {
@@ -144,7 +146,7 @@ void *glc_thread(void *argptr)
 	state.flags = state.read_size = state.write_size = 0;
 	state.ptr = thread->ptr;
 
-	glc_util_block_signals();
+	glc_thread_block_signals();
 
 	if (thread->flags & GLC_THREAD_READ) {
 		if (unlikely((ret = ps_packet_init(&read, private->from))))
@@ -351,6 +353,101 @@ err:
 	}
 
 	goto finish;
+}
+
+/*
+ * Signals should be handled by the main thread, nowhere else.
+ * I'm using POSIX signal interface here, until someone tells me
+ * that I should use signal/sigset instead
+ *
+ */
+int glc_thread_block_signals(void)
+{
+	sigset_t ss;
+
+	sigfillset(&ss);
+
+	/* These ones we want */
+	sigdelset(&ss, SIGKILL);
+	sigdelset(&ss, SIGSTOP);
+	sigdelset(&ss, SIGSEGV);
+	sigdelset(&ss, SIGCHLD);
+	sigdelset(&ss, SIGBUS);
+	sigdelset(&ss, SIGALRM);
+	sigdelset(&ss, SIGPROF);
+	sigdelset(&ss, SIGVTALRM);
+#ifndef NODEBUG
+	// Don't block SIGINT in debug so we can always break in the debugger
+	sigdelset(&ss, SIGINT);
+#endif
+        return pthread_sigmask(SIG_BLOCK, &ss, NULL);
+}
+
+typedef struct {
+	void *(*start_routine) (void *);
+	void *arg;
+} glc_simple_thread_param_t;
+
+static void *glc_simple_thread_start_routine(void *arg)
+{
+	glc_simple_thread_param_t *param = (glc_simple_thread_param_t*)arg;
+	void *res;
+
+	glc_thread_block_signals();
+	res  = param->start_routine(param->arg);
+	free(param);
+	return res;
+}
+
+int glc_simple_thread_create(glc_t *glc, glc_simple_thread_t *thread,
+				void *(*start_routine) (void *), void *arg)
+{
+	int ret;
+	glc_simple_thread_param_t *param;
+
+	if (unlikely(thread->running))
+		return EAGAIN;
+
+	param = (glc_simple_thread_param_t *) malloc(sizeof(glc_simple_thread_param_t));
+	if (!param)
+		return ENOMEM;
+
+	param->start_routine = start_routine;
+	param->arg = arg;
+
+	/* May need to set before starting the thread as some threads
+	 * might use this flag as a stop condition.
+	 */
+	thread->running = 1;
+	ret = pthread_create(&thread->thread, NULL,
+				glc_simple_thread_start_routine, param);
+
+	if (unlikely(ret)) {
+		thread->running = 0;
+		glc_log(glc, GLC_ERROR, "glc_thread",
+			 "can't create thread: %s (%d)", strerror(ret), ret);
+		free(param);
+	}
+
+	return ret;
+}
+
+int glc_simple_thread_wait(glc_t *glc, glc_simple_thread_t *thread)
+{
+	int ret;
+        if (unlikely(!thread->running))
+                return EAGAIN;
+
+	/*
+	 * May need to set before joining the thread as some threads
+	 * might use this flag as a stop condition.
+	 */
+        thread->running = 0;
+        if (unlikely((ret = pthread_join(thread->thread, NULL))))
+		glc_log(glc, GLC_ERROR, "glc_thread",
+			"can't join thread: %s (%d)", strerror(ret), ret);
+
+        return ret;
 }
 
 /**  \} */

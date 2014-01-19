@@ -122,7 +122,8 @@ typedef struct {
  * \param to buffer where data is written to
  * \return 0 on success otherwise an error code
  */
-__PUBLIC int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_buffer_t *to);
+__PUBLIC int glc_thread_create(glc_t *glc, glc_thread_t *thread,
+				ps_buffer_t *from, ps_buffer_t *to);
 
 /**
  * \brief block until threads have finished and clean up
@@ -130,6 +131,16 @@ __PUBLIC int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *fr
  * \return 0 on success otherwise an error code
  */
 __PUBLIC int glc_thread_wait(glc_thread_t *thread);
+
+typedef struct {
+	pthread_t thread;
+	int running;
+} glc_simple_thread_t;
+
+__PUBLIC int glc_simple_thread_create(glc_t *glc, glc_simple_thread_t *thread,
+				void *(*start_routine) (void *), void *arg);
+
+__PUBLIC int glc_simple_thread_wait(glc_t *glc, glc_simple_thread_t *thread);
 
 #ifdef __cplusplus
 }

@@ -44,6 +44,7 @@
 
 #include <glc/common/glc.h>
 #include <glc/common/core.h>
+#include <glc/common/thread.h>
 #include <glc/common/log.h>
 #include <glc/common/state.h>
 #include <glc/common/util.h>
@@ -75,8 +76,7 @@ struct alsa_hook_stream_s {
 	ps_packet_t packet;
 
 	/* thread-related */
-	pthread_t capture_thread;
-	int capture_running;
+	glc_simple_thread_t thread;
 
 	/* for communicating with capture thread */
 	sem_t capture_empty, capture_full;
@@ -108,7 +108,9 @@ struct alsa_hook_s {
 static int alsa_hook_init_streams(alsa_hook_t alsa_hook);
 static int alsa_hook_get_stream(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 				struct alsa_hook_stream_s **stream);
-static int alsa_hook_stream_init(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream);
+static int alsa_hook_stream_init(alsa_hook_t alsa_hook,
+				struct alsa_hook_stream_s *stream);
+static int alsa_hook_stream_wait(struct alsa_hook_stream_s *stream);
 static void *alsa_hook_mmap_pos(const snd_pcm_channel_area_t *area, snd_pcm_uframes_t offset);
 static int alsa_hook_complex_to_interleaved(struct alsa_hook_stream_s *stream,
 				const snd_pcm_channel_area_t *areas, snd_pcm_uframes_t offset,
@@ -205,6 +207,18 @@ int alsa_hook_init_streams(alsa_hook_t alsa_hook)
 	return 0;
 }
 
+int alsa_hook_stream_wait(struct alsa_hook_stream_s *stream)
+{
+	if (stream->thread.running) {
+		stream->thread.running = 0;
+
+		/* tell thread to quit */
+		sem_post(&stream->capture_full);
+		pthread_join(stream->thread.thread, NULL);
+	}
+	return 0;
+}
+
 int alsa_hook_destroy(alsa_hook_t alsa_hook)
 {
 	struct alsa_hook_stream_s *del;
@@ -216,13 +230,7 @@ int alsa_hook_destroy(alsa_hook_t alsa_hook)
 		del = alsa_hook->stream;
 		alsa_hook->stream = alsa_hook->stream->next;
 
-		if (del->capture_running) {
-			del->capture_running = 0;
-
-			/* tell thread to quit */
-			sem_post(&del->capture_full);
-			pthread_join(del->capture_thread, NULL);
-		}
+		alsa_hook_stream_wait(del);
 
 		sem_destroy(&del->capture_full);
 		sem_destroy(&del->capture_empty);
@@ -299,12 +307,6 @@ void *alsa_hook_thread(void *argptr)
 	glc_message_header_t msg_hdr;
 	int ret = 0;
 
-	/*
-	 * This thread cannot be choosen for signal delivery especially
-	 * if the signal handler waits for it.
-	 */
-	glc_util_block_signals();
-
 	msg_hdr.type = GLC_MESSAGE_AUDIO_DATA;
 	hdr.id = stream->id;
 
@@ -313,7 +315,7 @@ void *alsa_hook_thread(void *argptr)
 		sem_wait(&stream->capture_full);
 		stream->capture_ready = 0;
 
-		if (unlikely(!stream->capture_running))
+		if (unlikely(!stream->thread.running))
 			break;
 
 		if (unlikely(stream->capture_size < 0)) {
@@ -767,8 +769,10 @@ err:
 	return ret;
 }
 
-int alsa_hook_stream_init(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stream)
+int alsa_hook_stream_init(alsa_hook_t alsa_hook,
+			struct alsa_hook_stream_s *stream)
 {
+	int ret;
 	glc_message_header_t msg_hdr;
 	glc_audio_format_message_t fmt_msg;
 
@@ -777,7 +781,8 @@ int alsa_hook_stream_init(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stre
 
 	/* we need proper id for the stream */
 	if (stream->id < 1)
-		glc_state_audio_new(alsa_hook->glc, &stream->id, &stream->state_audio);
+		glc_state_audio_new(alsa_hook->glc, &stream->id,
+					&stream->state_audio);
 
 	glc_log(alsa_hook->glc, GLC_INFORMATION, "alsa_hook",
 		 "%p: initializing stream %d", stream->pcm, stream->id);
@@ -795,21 +800,19 @@ int alsa_hook_stream_init(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *stre
 	fmt_msg.channels = stream->channels;
 	fmt_msg.format = stream->format;
 	ps_packet_open(&stream->packet, PS_PACKET_WRITE);
-	ps_packet_write(&stream->packet, &msg_hdr, sizeof(glc_message_header_t));
-	ps_packet_write(&stream->packet, &fmt_msg, sizeof(glc_audio_format_message_t));
+	ps_packet_write(&stream->packet, &msg_hdr,
+			sizeof(glc_message_header_t));
+	ps_packet_write(&stream->packet, &fmt_msg,
+			sizeof(glc_audio_format_message_t));
 	ps_packet_close(&stream->packet);
 
-	if (stream->capture_running) {
-		/* kill old thread */
-		stream->capture_running = 0;
-		sem_post(&stream->capture_full);
-		pthread_join(stream->capture_thread, NULL);
-	}
+	alsa_hook_stream_wait(stream);
 
-	stream->capture_running = 1;
-	pthread_create(&stream->capture_thread, NULL, alsa_hook_thread, stream);
+	ret = glc_simple_thread_create(alsa_hook->glc, &stream->thread,
+				alsa_hook_thread, stream);
+
 	stream->initialized = 1;
-	return 0;
+	return ret;
 }
 
 /**  \} */

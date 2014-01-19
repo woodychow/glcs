@@ -296,34 +296,6 @@ char *glc_util_format_filename(const char *fmt, unsigned int capture)
 	return filename;
 }
 
-/*
- * Signals should be handled by the main thread, nowhere else.
- * I'm using POSIX signal interface here, until someone tells me
- * that I should use signal/sigset instead
- *
- */
-int glc_util_block_signals(void)
-{
-	sigset_t ss;
-
-	sigfillset(&ss);
-
-	/* These ones we want */
-	sigdelset(&ss, SIGKILL);
-	sigdelset(&ss, SIGSTOP);
-	sigdelset(&ss, SIGSEGV);
-	sigdelset(&ss, SIGCHLD);
-	sigdelset(&ss, SIGBUS);
-	sigdelset(&ss, SIGALRM);
-	sigdelset(&ss, SIGPROF);
-	sigdelset(&ss, SIGVTALRM);
-#ifndef NODEBUG
-	// Don't block SIGINT in debug so we can always break in the debugger
-	sigdelset(&ss, SIGINT);
-#endif
-        return pthread_sigmask(SIG_BLOCK, &ss, NULL);
-}
-
 int glc_util_setflag( int fd, int flag )
 {
 	int val;

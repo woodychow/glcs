@@ -43,6 +43,7 @@
 
 #include <glc/common/glc.h>
 #include <glc/common/core.h>
+#include <glc/common/thread.h>
 #include <glc/common/log.h>
 #include <glc/common/state.h>
 #include <glc/common/util.h>
@@ -81,10 +82,9 @@ struct alsa_capture_s {
 	nfds_t nfds;
 	nfds_t nfds_capacity;
 
-	pthread_t capture_thread;
+	glc_simple_thread_t thread;
 	int skip_data;
 	int stop_capture;
-	int thread_running;
 };
 
 static int alsa_capture_open(alsa_capture_t alsa_capture);
@@ -127,9 +127,10 @@ int alsa_capture_destroy(alsa_capture_t alsa_capture)
 
 	alsa_capture->stop_capture = 1;
 
-	if (alsa_capture->thread_running) {
+	if (alsa_capture->thread.running) {
 		write(alsa_capture->interrupt_pipe[1],"",1);
-		pthread_join(alsa_capture->capture_thread, NULL);
+		pthread_join(alsa_capture->thread.thread, NULL);
+		alsa_capture->thread.running = 0;
 	}
 
 	close(alsa_capture->interrupt_pipe[1]);
@@ -139,7 +140,8 @@ int alsa_capture_destroy(alsa_capture_t alsa_capture)
 	return 0;
 }
 
-int alsa_capture_set_buffer(alsa_capture_t alsa_capture, ps_buffer_t *buffer)
+int alsa_capture_set_buffer(alsa_capture_t alsa_capture,
+			ps_buffer_t *buffer)
 {
 	alsa_capture->to = buffer;
 	return 0;
@@ -181,12 +183,12 @@ int alsa_capture_start(alsa_capture_t alsa_capture)
 	if (unlikely(alsa_capture->to == NULL))
 		return EAGAIN;
 
-	if (unlikely(!alsa_capture->thread_running)) {
+	if (!alsa_capture->thread.running) {
 		pipe(alsa_capture->interrupt_pipe);
 		glc_util_set_nonblocking(alsa_capture->interrupt_pipe[0]);
-		pthread_create(&alsa_capture->capture_thread, NULL,
-				alsa_capture_thread, (void *) alsa_capture);
-		alsa_capture->thread_running = 1;
+		glc_simple_thread_create(alsa_capture->glc,
+					&alsa_capture->thread,
+					alsa_capture_thread, alsa_capture);
 	}
 
 	if (likely(alsa_capture->skip_data != 0)) {
@@ -227,11 +229,13 @@ int alsa_capture_open(alsa_capture_t alsa_capture)
 	glc_message_header_t msg_hdr;
 	glc_audio_format_message_t fmt_msg;
 
-	glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture", "opening device %s",
-		 alsa_capture->device);
+	glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture",
+		"opening device %s",
+		alsa_capture->device);
 
 	/* open pcm */
-	if (unlikely((ret = snd_pcm_open(&alsa_capture->pcm, alsa_capture->device,
+	if (unlikely((ret = snd_pcm_open(&alsa_capture->pcm,
+					alsa_capture->device,
 		SND_PCM_STREAM_CAPTURE, 0)) < 0))
 		goto err;
 
@@ -569,8 +573,6 @@ void *alsa_capture_thread(void *argptr)
 	alsa_capture_t alsa_capture = argptr;
 	ps_packet_t packet;
 	int ret;
-
-	glc_util_block_signals();
 
 	ps_packet_init(&packet, alsa_capture->to);
 	alsa_capture->msg_hdr.type = GLC_MESSAGE_AUDIO_DATA;
