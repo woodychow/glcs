@@ -80,7 +80,7 @@ __PRIVATE int alsa_loaded = 0;
 
 __PRIVATE void get_real_alsa();
 
-__PRIVATE int alsa_parse_capture_cfg(const char *cfg);
+__PRIVATE int alsa_parse_capture_cfg(glc_t *glc, const char *cfg);
 
 int alsa_init(glc_t *glc)
 {
@@ -109,7 +109,7 @@ int alsa_init(glc_t *glc)
 	}
 
 	if (getenv("GLC_AUDIO_RECORD"))
-		captured_stream_num = alsa_parse_capture_cfg(getenv("GLC_AUDIO_RECORD"));
+		captured_stream_num = alsa_parse_capture_cfg(glc, getenv("GLC_AUDIO_RECORD"));
 
 	get_real_alsa();
 
@@ -121,7 +121,7 @@ int alsa_init(glc_t *glc)
 	return 0;
 }
 
-int alsa_parse_capture_cfg(const char *cfg)
+int alsa_parse_capture_cfg(glc_t *glc, const char *cfg)
 {
 	struct alsa_capture_stream_s *stream;
 	const char *args, *next, *device = cfg;
@@ -139,8 +139,8 @@ int alsa_parse_capture_cfg(const char *cfg)
 		rate = 44100;
 
 		/* check if some args have been given */
-		if ((args = strstr(device, ",")))
-			sscanf(args, ",%u,%u", &rate, &channels);
+		if ((args = strstr(device, "#")))
+			sscanf(args, "#%u#%u", &rate, &channels);
 		next = strstr(device, ";");
 
 		stream = (struct alsa_capture_stream_s *)
@@ -161,6 +161,9 @@ int alsa_parse_capture_cfg(const char *cfg)
 		stream->rate = rate;
 		stream->next = alsa.capture_stream;
 		alsa.capture_stream = stream;
+
+		glc_log(glc, GLC_INFORMATION, "alsa", "capturing device %s with %u channels at %u",
+			stream->device, stream->channels, stream->rate);
 
 		device = next;
 		++ret;

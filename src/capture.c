@@ -155,7 +155,7 @@ usage:
 	       "  -r, --resize=FACTOR        resize pictures with scale factor FACTOR\n"
 	       "  -c, --crop=WxH+X+Y         capture only [width]x[height][+[x][+[y]]]\n"
 	       "  -a, --record-audio=CONFIG  record specified alsa devices\n"
-	       "                               format is device,rate,channels;device2...\n"
+	       "                               format is device#rate#channels;device2...\n"
 	       "  -s, --start                start capturing immediately\n"
 	       "  -e, --colorspace=CSP       keep as 'bgr' or convert to '420jpeg'\n"
 	       "                               default value is '420jpeg'\n"

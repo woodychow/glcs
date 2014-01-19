@@ -34,11 +34,11 @@ export GLC_CAPTURE_GLFINISH=0
 # take picture from front or back buffer
 export GLC_CAPTURE=back
 
-# compress stream using 'lzo', 'quicklz' or 'none'
-export GLC_COMPRESS=lzo
+# compress stream using 'lzo', 'quicklz', 'lzjb' or 'none'
+export GLC_COMPRESS=quicklz
 
 # try GL_ARB_pixel_buffer_object to speed up readback
-export GLC_TRY_PBO=0
+export GLC_TRY_PBO=1
 
 # Skip audio packets. Not skipping requires some busy
 # waiting and can slow program down a quite bit.
@@ -66,8 +66,8 @@ export GLC_COLORSPACE=bgr
 # export GLC_CROP=WxH+X+Y
 
 # record alsa devices
-# format is device,rate,channels;device2...
-# export GLC_AUDIO_RECORD=default,44100,1
+# format is device#rate#channels;device2...
+export GLC_AUDIO_RECORD=hw:0,0#44100#2
 
 # use GL_PACK_ALIGNMENT 8
 #export GLC_CAPTURE_DWORD_ALIGNED=1
