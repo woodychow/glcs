@@ -30,8 +30,8 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 #include <pthread.h>
+#include <inttypes.h> // for PRI64d
 
 #include "glc.h"
 #include "core.h"
@@ -174,7 +174,7 @@ void glc_state_time_reset(glc_t *glc)
 
 int glc_state_time_add_diff(glc_t *glc, glc_stime_t diff)
 {
-	glc_log(glc, GLC_DEBUG, "state", "applying %ld usec time difference", diff);
+	glc_log(glc, GLC_DEBUG, "state", "applying %" PRId64  " nsec time difference", diff);
 	pthread_rwlock_wrlock(&glc->state->time_rwlock);
 	glc->state->time_difference += diff;
 	pthread_rwlock_unlock(&glc->state->time_rwlock);

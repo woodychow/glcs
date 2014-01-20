@@ -458,31 +458,49 @@ int alsa_capture_prepare_fds(alsa_capture_t alsa_capture)
 
 int alsa_capture_check_state(alsa_capture_t alsa_capture)
 {
-	int ret = 1;
+	int ret = 0;
 	if (unlikely(alsa_capture->fds[0].revents & (POLLERR|POLLHUP))) {
 		glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
 			"pipe error");
-		alsa_capture->stop_capture = 1;
+		ret = -ECONNRESET;
+		goto err;
 	} else if (alsa_capture->fds[0].revents & POLLIN) {
 		glc_util_empty_pipe(alsa_capture->fds[0].fd);
 	}
 	if (likely(!alsa_capture->stop_capture)) {
 		if (alsa_capture->skip_data) {
 			if (alsa_capture->nfds > 1) {
-				snd_pcm_drop(alsa_capture->pcm);
+				if (unlikely((ret = snd_pcm_drop(alsa_capture->pcm)) < 0)) {
+					glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
+						"snd_pcm_drop error: %s (%d)", strerror(-ret), -ret);
+					goto err;
+				}
+
+				/* prepare the stream for the eventual restart */
+				if (unlikely((ret = snd_pcm_prepare(alsa_capture->pcm)) < 0)) {
+					glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
+						"snd_pcm_prepare error: %s (%d)", strerror(-ret), -ret);
+					goto err;
+				}
 				glc_log(alsa_capture->glc, GLC_INFORMATION,
 					"alsa_capture", "snd_pcm_drop()");
-			} else
-				ret = 0;
-		} else {
-			if (alsa_capture->nfds == 1) {
-				snd_pcm_start(alsa_capture->pcm);
-				glc_log(alsa_capture->glc, GLC_INFORMATION,
-					"alsa_capture", "snd_pcm_start()");
-			} else
-				ret = 0;
+				ret = 1;
+			}
+		} else if (alsa_capture->nfds == 1) {
+			if (unlikely((ret = snd_pcm_start(alsa_capture->pcm)) < 0)) {
+				glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
+					"snd_pcm_start error: %s (%d)", strerror(-ret), -ret);
+				goto err;
+			}
+			glc_log(alsa_capture->glc, GLC_INFORMATION,
+				"alsa_capture", "snd_pcm_start()");
+			ret = 1;
 		}
-	}
+	} else
+		ret = 1;
+	return ret;
+err:
+	alsa_capture->stop_capture = 1;
 	return ret;
 }
 
