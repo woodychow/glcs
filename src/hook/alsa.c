@@ -62,22 +62,7 @@ struct alsa_private_s {
 	struct alsa_capture_stream_s *capture_stream;
 
 	void *libasound_handle;
-	int (*snd_pcm_open)(snd_pcm_t **, const char *, snd_pcm_stream_t, int);
-	int (*snd_pcm_open_lconf)(snd_pcm_t **, const char *, snd_pcm_stream_t,
-				int, snd_config_t *);
-	int (*snd_pcm_close)(snd_pcm_t *);
-	int (*snd_pcm_hw_params)(snd_pcm_t *, snd_pcm_hw_params_t *);
-	snd_pcm_sframes_t (*snd_pcm_writei)(snd_pcm_t *, const void *,
-						snd_pcm_uframes_t);
-	snd_pcm_sframes_t (*snd_pcm_writen)(snd_pcm_t *, void **, snd_pcm_uframes_t);
-	snd_pcm_sframes_t (*snd_pcm_mmap_writei)(snd_pcm_t *, const void *,
-						snd_pcm_uframes_t);
-	snd_pcm_sframes_t (*snd_pcm_mmap_writen)(snd_pcm_t *, void **,
-						snd_pcm_uframes_t);
-	int (*snd_pcm_mmap_begin)(snd_pcm_t *, const snd_pcm_channel_area_t **,
-				  snd_pcm_uframes_t *, snd_pcm_uframes_t *);
-	snd_pcm_sframes_t (*snd_pcm_mmap_commit)(snd_pcm_t *, snd_pcm_uframes_t,
-						snd_pcm_uframes_t);
+	alsa_real_api_t api;
 };
 
 __PRIVATE struct alsa_private_s alsa;
@@ -194,7 +179,7 @@ int alsa_start(ps_buffer_t *buffer)
 
 	/* start capture streams */
 	while (stream != NULL) {
-		alsa_capture_init(&stream->capture, alsa.glc, NULL);
+		alsa_capture_init(&stream->capture, alsa.glc, &alsa.api);
 		alsa_capture_set_buffer(stream->capture, buffer);
 		alsa_capture_set_device(stream->capture, stream->device);
 		alsa_capture_set_rate(stream->capture, stream->rate);
@@ -289,65 +274,65 @@ void get_real_alsa()
 	if (unlikely(!alsa.libasound_handle))
 		goto err;
 
-	alsa.snd_pcm_open =
+	alsa.api.snd_pcm_open =
 	  (int (*)(snd_pcm_t **, const char *, snd_pcm_stream_t, int))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_open");
-	if (unlikely(!alsa.snd_pcm_open))
+	if (unlikely(!alsa.api.snd_pcm_open))
 		goto err;
 
-	alsa.snd_pcm_hw_params =
+	alsa.api.snd_pcm_hw_params =
 	  (int (*)(snd_pcm_t *, snd_pcm_hw_params_t *))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_hw_params");
-	if (unlikely(!alsa.snd_pcm_hw_params))
+	if (unlikely(!alsa.api.snd_pcm_hw_params))
 		goto err;
 
-	alsa.snd_pcm_open_lconf =
+	alsa.api.snd_pcm_open_lconf =
 	  (int (*)(snd_pcm_t **, const char *, snd_pcm_stream_t, int, snd_config_t *))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_open_lconf");
-	if (unlikely(!alsa.snd_pcm_open_lconf))
+	if (unlikely(!alsa.api.snd_pcm_open_lconf))
 		goto err;
 
-	alsa.snd_pcm_close =
+	alsa.api.snd_pcm_close =
 	  (int (*)(snd_pcm_t *))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_close");
-	if (!alsa.snd_pcm_close)
+	if (!alsa.api.snd_pcm_close)
 		goto err;
 
-	alsa.snd_pcm_writei =
+	alsa.api.snd_pcm_writei =
 	  (snd_pcm_sframes_t (*)(snd_pcm_t *, const void *, snd_pcm_uframes_t))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_writei");
-	if (unlikely(!alsa.snd_pcm_writei))
+	if (unlikely(!alsa.api.snd_pcm_writei))
 		goto err;
 
-	alsa.snd_pcm_writen =
+	alsa.api.snd_pcm_writen =
 	  (snd_pcm_sframes_t (*)(snd_pcm_t *, void **, snd_pcm_uframes_t))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_writen");
-	if (unlikely(!alsa.snd_pcm_writen))
+	if (unlikely(!alsa.api.snd_pcm_writen))
 		goto err;
 
-	alsa.snd_pcm_mmap_writei =
+	alsa.api.snd_pcm_mmap_writei =
 	  (snd_pcm_sframes_t (*)(snd_pcm_t *, const void *, snd_pcm_uframes_t))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_mmap_writei");
-	if (unlikely(!alsa.snd_pcm_writei))
+	if (unlikely(!alsa.api.snd_pcm_writei))
 		goto err;
 
-	alsa.snd_pcm_mmap_writen =
+	alsa.api.snd_pcm_mmap_writen =
 	  (snd_pcm_sframes_t (*)(snd_pcm_t *, void **, snd_pcm_uframes_t))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_mmap_writen");
-	if (unlikely(!alsa.snd_pcm_writen))
+	if (unlikely(!alsa.api.snd_pcm_writen))
 		goto err;
 
-	alsa.snd_pcm_mmap_begin =
+	alsa.api.snd_pcm_mmap_begin =
 	  (int (*)(snd_pcm_t *, const snd_pcm_channel_area_t **, snd_pcm_uframes_t *,
 		   snd_pcm_uframes_t *))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_mmap_begin");
-	if (unlikely(!alsa.snd_pcm_mmap_begin))
+	if (unlikely(!alsa.api.snd_pcm_mmap_begin))
 		goto err;
 
-	alsa.snd_pcm_mmap_commit =
+	alsa.api.snd_pcm_mmap_commit =
 	  (snd_pcm_sframes_t (*)(snd_pcm_t *, snd_pcm_uframes_t, snd_pcm_uframes_t))
 	    lib.dlsym(alsa.libasound_handle, "snd_pcm_mmap_commit");
-	if (unlikely(!alsa.snd_pcm_mmap_commit))
+	if (unlikely(!alsa.api.snd_pcm_mmap_commit))
 		goto err;
 
 	alsa_loaded = 1;
@@ -369,16 +354,16 @@ int alsa_unhook_so(const char *soname)
 		return ret;
 
 	/* don't look at 'elfhacks'... contains some serious black magic */
-	eh_set_rel(&so, "snd_pcm_open", alsa.snd_pcm_open);
-	eh_set_rel(&so, "snd_pcm_open_lconf", alsa.snd_pcm_open_lconf);
-	eh_set_rel(&so, "snd_pcm_close", alsa.snd_pcm_close);
-	eh_set_rel(&so, "snd_pcm_hw_params", alsa.snd_pcm_hw_params);
-	eh_set_rel(&so, "snd_pcm_writei", alsa.snd_pcm_writei);
-	eh_set_rel(&so, "snd_pcm_writen", alsa.snd_pcm_writen);
-	eh_set_rel(&so, "snd_pcm_mmap_writei", alsa.snd_pcm_mmap_writei);
-	eh_set_rel(&so, "snd_pcm_mmap_writen", alsa.snd_pcm_mmap_writen);
-	eh_set_rel(&so, "snd_pcm_mmap_begin", alsa.snd_pcm_mmap_begin);
-	eh_set_rel(&so, "snd_pcm_mmap_commit", alsa.snd_pcm_mmap_commit);
+	eh_set_rel(&so, "snd_pcm_open", alsa.api.snd_pcm_open);
+	eh_set_rel(&so, "snd_pcm_open_lconf", alsa.api.snd_pcm_open_lconf);
+	eh_set_rel(&so, "snd_pcm_close", alsa.api.snd_pcm_close);
+	eh_set_rel(&so, "snd_pcm_hw_params", alsa.api.snd_pcm_hw_params);
+	eh_set_rel(&so, "snd_pcm_writei", alsa.api.snd_pcm_writei);
+	eh_set_rel(&so, "snd_pcm_writen", alsa.api.snd_pcm_writen);
+	eh_set_rel(&so, "snd_pcm_mmap_writei", alsa.api.snd_pcm_mmap_writei);
+	eh_set_rel(&so, "snd_pcm_mmap_writen", alsa.api.snd_pcm_mmap_writen);
+	eh_set_rel(&so, "snd_pcm_mmap_begin", alsa.api.snd_pcm_mmap_begin);
+	eh_set_rel(&so, "snd_pcm_mmap_commit", alsa.api.snd_pcm_mmap_commit);
 	eh_set_rel(&so, "dlsym", lib.dlsym);
 	eh_set_rel(&so, "dlvsym", lib.dlvsym);
 
@@ -397,8 +382,7 @@ int __alsa_snd_pcm_open(snd_pcm_t **pcmp, const char *name, snd_pcm_stream_t str
 	/* it is not necessarily safe to call glc_init() from write funcs
 	   especially async mode (initiated from signal) is troublesome */
 	INIT_GLC
-	glc_log(alsa.glc,GLC_DEBUG,"alsa", "opening %s", name);
-	int ret = alsa.snd_pcm_open(pcmp, name, stream, mode);
+	int ret = alsa.api.snd_pcm_open(pcmp, name, stream, mode);
 	if ((alsa.capture) && (ret == 0))
 		alsa_hook_open(alsa.alsa_hook, *pcmp, name, stream, mode);
 	return ret;
@@ -414,7 +398,7 @@ int __alsa_snd_pcm_open_lconf(snd_pcm_t **pcmp, const char *name, snd_pcm_stream
 			      int mode, snd_config_t *lconf)
 {
 	INIT_GLC
-	int ret = alsa.snd_pcm_open_lconf(pcmp, name, stream, mode, lconf);
+	int ret = alsa.api.snd_pcm_open_lconf(pcmp, name, stream, mode, lconf);
 	if ((alsa.capture) && (ret == 0))
 		alsa_hook_open(alsa.alsa_hook, *pcmp, name, stream, mode);
 	return ret;
@@ -428,7 +412,7 @@ __PUBLIC int snd_pcm_close(snd_pcm_t *pcm)
 int __alsa_snd_pcm_close(snd_pcm_t *pcm)
 {
 	INIT_GLC
-	int ret = alsa.snd_pcm_close(pcm);
+	int ret = alsa.api.snd_pcm_close(pcm);
 	if ((alsa.capture) && (ret == 0))
 		alsa_hook_close(alsa.alsa_hook, pcm);
 	return ret;
@@ -442,7 +426,7 @@ __PUBLIC int snd_pcm_hw_params(snd_pcm_t *pcm, snd_pcm_hw_params_t *params)
 int __alsa_snd_pcm_hw_params(snd_pcm_t *pcm, snd_pcm_hw_params_t *params)
 {
 	INIT_GLC
-	int ret = alsa.snd_pcm_hw_params(pcm, params);
+	int ret = alsa.api.snd_pcm_hw_params(pcm, params);
 	if ((alsa.capture) && (ret == 0))
 		alsa_hook_hw_params(alsa.alsa_hook, pcm, params);
 	return ret;
@@ -456,7 +440,7 @@ __PUBLIC snd_pcm_sframes_t snd_pcm_writei(snd_pcm_t *pcm, const void *buffer, sn
 snd_pcm_sframes_t __alsa_snd_pcm_writei(snd_pcm_t *pcm, const void *buffer, snd_pcm_uframes_t size)
 {
 	INIT_GLC
-	snd_pcm_sframes_t ret = alsa.snd_pcm_writei(pcm, buffer, size);
+	snd_pcm_sframes_t ret = alsa.api.snd_pcm_writei(pcm, buffer, size);
 	if ((alsa.capture) && (ret > 0) && alsa.capturing)
 		alsa_hook_writei(alsa.alsa_hook, pcm, buffer, ret);
 	return ret;
@@ -470,7 +454,7 @@ __PUBLIC snd_pcm_sframes_t snd_pcm_writen(snd_pcm_t *pcm, void **bufs, snd_pcm_u
 snd_pcm_sframes_t __alsa_snd_pcm_writen(snd_pcm_t *pcm, void **bufs, snd_pcm_uframes_t size)
 {
 	INIT_GLC
-	snd_pcm_sframes_t ret = alsa.snd_pcm_writen(pcm, bufs, size);
+	snd_pcm_sframes_t ret = alsa.api.snd_pcm_writen(pcm, bufs, size);
 	if (alsa.capture && (ret > 0))
 		alsa_hook_writen(alsa.alsa_hook, pcm, bufs, ret);
 	return ret;
@@ -484,7 +468,7 @@ __PUBLIC snd_pcm_sframes_t snd_pcm_mmap_writei(snd_pcm_t *pcm, const void *buffe
 snd_pcm_sframes_t __alsa_snd_pcm_mmap_writei(snd_pcm_t *pcm, const void *buffer, snd_pcm_uframes_t size)
 {
 	INIT_GLC
-	snd_pcm_sframes_t ret = alsa.snd_pcm_mmap_writei(pcm, buffer, size);
+	snd_pcm_sframes_t ret = alsa.api.snd_pcm_mmap_writei(pcm, buffer, size);
 	if (alsa.capture && (ret > 0))
 		alsa_hook_writei(alsa.alsa_hook, pcm, buffer, ret);
 	return ret;
@@ -498,7 +482,7 @@ __PUBLIC snd_pcm_sframes_t snd_pcm_mmap_writen(snd_pcm_t *pcm, void **bufs, snd_
 snd_pcm_sframes_t __alsa_snd_pcm_mmap_writen(snd_pcm_t *pcm, void **bufs, snd_pcm_uframes_t size)
 {
 	INIT_GLC
-	snd_pcm_sframes_t ret = alsa.snd_pcm_mmap_writen(pcm, bufs, size);
+	snd_pcm_sframes_t ret = alsa.api.snd_pcm_mmap_writen(pcm, bufs, size);
 	if ((alsa.capture) && (ret > 0))
 		alsa_hook_writen(alsa.alsa_hook, pcm, bufs, ret);
 	return ret;
@@ -514,7 +498,7 @@ int __alsa_snd_pcm_mmap_begin(snd_pcm_t *pcm, const snd_pcm_channel_area_t **are
 				snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames)
 {
 	INIT_GLC
-	int ret = alsa.snd_pcm_mmap_begin(pcm, areas, offset, frames);
+	int ret = alsa.api.snd_pcm_mmap_begin(pcm, areas, offset, frames);
 	if (alsa.capture && (ret >= 0))
 		alsa_hook_mmap_begin(alsa.alsa_hook, pcm, *areas, *offset, *frames);
 	return ret;
@@ -532,7 +516,7 @@ snd_pcm_sframes_t __alsa_snd_pcm_mmap_commit(snd_pcm_t *pcm, snd_pcm_uframes_t o
 	if (alsa.capture)
 		alsa_hook_mmap_commit(alsa.alsa_hook, pcm, offset,  frames);
 
-	ret = alsa.snd_pcm_mmap_commit(pcm, offset, frames);
+	ret = alsa.api.snd_pcm_mmap_commit(pcm, offset, frames);
 	if (ret != frames)
 		glc_log(alsa.glc, GLC_WARNING, "alsa", "frames=%lu, ret=%ld", frames, ret);
 	return ret;
