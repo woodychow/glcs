@@ -192,13 +192,13 @@ int alsa_capture_start(alsa_capture_t alsa_capture)
 	}
 
 	if (likely(alsa_capture->skip_data != 0)) {
-		glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture",
-			 "device %s already started", alsa_capture->device);
+		glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture",
+			 "starting device %s", alsa_capture->device);
 		alsa_capture->skip_data = 0;
 		write(alsa_capture->interrupt_pipe[1],"",1);
 	} else
-		glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture",
-			 "starting device %s", alsa_capture->device);
+		glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture",
+			 "device %s already started", alsa_capture->device);
 
 	return 0;
 }
@@ -321,6 +321,8 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 	snd_pcm_format_mask_t *formats = NULL;
 	snd_pcm_uframes_t max_buffer_size;
 	unsigned int min_periods;
+	unsigned int buffer_time;
+	unsigned int period_time;
 	int dir, ret;
 
 	if (unlikely((ret = snd_pcm_hw_params_any(alsa_capture->pcm, hw_params)) < 0))
@@ -347,11 +349,15 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 						hw_params, alsa_capture->rate, 0)) < 0))
 		goto err;
 
-	if (unlikely((ret = snd_pcm_hw_params_get_buffer_size_max(hw_params,
-						&max_buffer_size)) < 0))
+	if (unlikely((ret = snd_pcm_hw_params_get_buffer_time_max(hw_params,
+						&buffer_time, 0))))
 		goto err;
-	if (unlikely((ret = snd_pcm_hw_params_set_buffer_size(alsa_capture->pcm,
-						hw_params, max_buffer_size)) < 0))
+
+	if (buffer_time > 500000)
+		buffer_time = 500000;
+
+	if (unlikely((ret = snd_pcm_hw_params_set_buffer_time_near(alsa_capture->pcm,
+						hw_params, &buffer_time, 0)) < 0))
 		goto err;
 
 	if (unlikely((ret = snd_pcm_hw_params_get_periods_min(hw_params,
@@ -365,11 +371,23 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 						 dir)) < 0))
 		goto err;
 
-	if (unlikely((ret = snd_pcm_hw_params(alsa_capture->pcm, hw_params)) < 0))
+	if (unlikely((ret = snd_pcm_hw_params(alsa_capture->pcm, hw_params)) < 0)) {
+		glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
+			"Unable to install hw params");
 		goto err;
+	}
+
+	if (unlikely((ret = snd_pcm_hw_params_get_buffer_size(hw_params,
+						&max_buffer_size)) < 0))
+		goto err;
+
+	if (unlikely((ret = snd_pcm_hw_params_get_period_time(hw_params,
+						&period_time, 0)) < 0))
+		goto err;
+
 	glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture",
-		"buffer size: %d num periods: %d", max_buffer_size,
-		alsa_capture->min_periods);
+		"buffer size: %d num periods: %d period len %u usec", max_buffer_size,
+		alsa_capture->min_periods, period_time);
 err:
 	return -ret;
 }
@@ -406,14 +424,16 @@ int alsa_capture_prepare_fds(alsa_capture_t alsa_capture)
 	if (!alsa_capture->skip_data) {
 		pcm_nfds = snd_pcm_poll_descriptors_count(alsa_capture->pcm);
 		if (pcm_nfds+1 > alsa_capture->nfds_capacity) {
-			struct pollfd *ptr = realloc(alsa_capture->fds, (pcm_nfds+1)*sizeof(struct pollfd));
+			struct pollfd *ptr = realloc(alsa_capture->fds,
+						(pcm_nfds+1)*sizeof(struct pollfd));
 			if (!ptr)
 				return -ENOMEM;
 			alsa_capture->fds = ptr;
 			alsa_capture->nfds_capacity = pcm_nfds+1;
 		}
 		alsa_capture->nfds = pcm_nfds+1;
-		ret = snd_pcm_poll_descriptors(alsa_capture->pcm, &alsa_capture->fds[1], pcm_nfds);
+		ret = snd_pcm_poll_descriptors(alsa_capture->pcm, &alsa_capture->fds[1],
+						pcm_nfds);
 	} else
 		alsa_capture->nfds = 1;
 	return ret;
@@ -462,7 +482,8 @@ int alsa_capture_pcm_error(alsa_capture_t alsa_capture)
 	case SND_PCM_STATE_RUNNING:
 		return 0;
 	default:
-		glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture", "unexpected state: %s",
+		glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
+			"unexpected state: %s",
 			snd_pcm_state_name(s));
 		return -EIO;
 	}
@@ -515,7 +536,8 @@ int alsa_capture_process_pcm(alsa_capture_t alsa_capture, ps_packet_t *packet)
 	char *dma;
 	unsigned short revents;
 
-	if (unlikely(snd_pcm_poll_descriptors_revents(alsa_capture->pcm, &alsa_capture->fds[1],
+	if (unlikely(snd_pcm_poll_descriptors_revents(alsa_capture->pcm,
+						&alsa_capture->fds[1],
 						alsa_capture->nfds-1,&revents))) {
 		glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
 			"snd_pcm_poll_descriptors_revents()");
@@ -583,11 +605,20 @@ void *alsa_capture_thread(void *argptr)
 	if (unlikely(alsa_capture_init_fds(alsa_capture) < 0))
 		goto end;
 
+	/*
+	 * this is to avoid a race condition with the thread calling
+	 * alsa_capture_start() when it sets skip_data to 0 and what
+	 * is done in alsa_capture_prepare_fds().
+	 *
+	 * Feel free to rework the code to get rid of this ugly goto.
+	 */
+	goto firstpoll;
+
 	while (!alsa_capture->stop_capture) {
 
 		if (unlikely(alsa_capture_prepare_fds(alsa_capture) < 0))
 			break;
-
+firstpoll:
 		if (unlikely((ret = poll(alsa_capture->fds, alsa_capture->nfds, -1)) < 0 &&
 				errno != EINTR)) {
 			glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
@@ -599,7 +630,8 @@ void *alsa_capture_thread(void *argptr)
 			if (alsa_capture_check_state(alsa_capture))
 				continue;
 			if (alsa_capture->nfds > 1) {
-				if (unlikely(alsa_capture_process_pcm(alsa_capture, &packet) < 0))
+				if (unlikely(alsa_capture_process_pcm(alsa_capture,
+									&packet) < 0))
 					break;
 			}
 		}

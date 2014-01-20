@@ -63,16 +63,21 @@ struct alsa_private_s {
 
 	void *libasound_handle;
 	int (*snd_pcm_open)(snd_pcm_t **, const char *, snd_pcm_stream_t, int);
-	int (*snd_pcm_open_lconf)(snd_pcm_t **, const char *, snd_pcm_stream_t, int, snd_config_t *);
+	int (*snd_pcm_open_lconf)(snd_pcm_t **, const char *, snd_pcm_stream_t,
+				int, snd_config_t *);
 	int (*snd_pcm_close)(snd_pcm_t *);
 	int (*snd_pcm_hw_params)(snd_pcm_t *, snd_pcm_hw_params_t *);
-	snd_pcm_sframes_t (*snd_pcm_writei)(snd_pcm_t *, const void *, snd_pcm_uframes_t);
+	snd_pcm_sframes_t (*snd_pcm_writei)(snd_pcm_t *, const void *,
+						snd_pcm_uframes_t);
 	snd_pcm_sframes_t (*snd_pcm_writen)(snd_pcm_t *, void **, snd_pcm_uframes_t);
-	snd_pcm_sframes_t (*snd_pcm_mmap_writei)(snd_pcm_t *, const void *, snd_pcm_uframes_t);
-	snd_pcm_sframes_t (*snd_pcm_mmap_writen)(snd_pcm_t *, void **, snd_pcm_uframes_t);
+	snd_pcm_sframes_t (*snd_pcm_mmap_writei)(snd_pcm_t *, const void *,
+						snd_pcm_uframes_t);
+	snd_pcm_sframes_t (*snd_pcm_mmap_writen)(snd_pcm_t *, void **,
+						snd_pcm_uframes_t);
 	int (*snd_pcm_mmap_begin)(snd_pcm_t *, const snd_pcm_channel_area_t **,
 				  snd_pcm_uframes_t *, snd_pcm_uframes_t *);
-	snd_pcm_sframes_t (*snd_pcm_mmap_commit)(snd_pcm_t *, snd_pcm_uframes_t, snd_pcm_uframes_t);
+	snd_pcm_sframes_t (*snd_pcm_mmap_commit)(snd_pcm_t *, snd_pcm_uframes_t,
+						snd_pcm_uframes_t);
 };
 
 __PRIVATE struct alsa_private_s alsa;
@@ -90,11 +95,12 @@ int alsa_init(glc_t *glc)
 	alsa.alsa_hook = NULL;
 	int ret = 0;
 	long int captured_stream_num = 0;
+	char *env_var;
 
 	glc_log(alsa.glc, GLC_DEBUG, "alsa", "initializing");
 
-	if (getenv("GLC_AUDIO"))
-		alsa.capture = atoi(getenv("GLC_AUDIO"));
+	if ((env_var = getenv("GLC_AUDIO")))
+		alsa.capture = atoi(env_var);
 	else
 		alsa.capture = 1;
 
@@ -104,12 +110,12 @@ int alsa_init(glc_t *glc)
 			return ret;
 
 		alsa_hook_allow_skip(alsa.alsa_hook, 0);
-		if (getenv("GLC_AUDIO_SKIP"))
-			alsa_hook_allow_skip(alsa.alsa_hook, atoi(getenv("GLC_AUDIO_SKIP")));
+		if ((env_var = getenv("GLC_AUDIO_SKIP")))
+			alsa_hook_allow_skip(alsa.alsa_hook, atoi(env_var));
 	}
 
-	if (getenv("GLC_AUDIO_RECORD"))
-		captured_stream_num = alsa_parse_capture_cfg(glc, getenv("GLC_AUDIO_RECORD"));
+	if ((env_var = getenv("GLC_AUDIO_RECORD")))
+		captured_stream_num = alsa_parse_capture_cfg(glc, env_var);
 
 	get_real_alsa();
 
@@ -162,7 +168,8 @@ int alsa_parse_capture_cfg(glc_t *glc, const char *cfg)
 		stream->next = alsa.capture_stream;
 		alsa.capture_stream = stream;
 
-		glc_log(glc, GLC_INFORMATION, "alsa", "capturing device %s with %u channels at %u",
+		glc_log(glc, GLC_INFORMATION, "alsa",
+			"capturing device %s with %u channels at %u",
 			stream->device, stream->channels, stream->rate);
 
 		device = next;
@@ -390,7 +397,7 @@ int __alsa_snd_pcm_open(snd_pcm_t **pcmp, const char *name, snd_pcm_stream_t str
 	/* it is not necessarily safe to call glc_init() from write funcs
 	   especially async mode (initiated from signal) is troublesome */
 	INIT_GLC
-	glc_log(alsa.glc,GLC_DEBUG,"alsa_hook", "openning %s", name);
+	glc_log(alsa.glc,GLC_DEBUG,"alsa", "opening %s", name);
 	int ret = alsa.snd_pcm_open(pcmp, name, stream, mode);
 	if ((alsa.capture) && (ret == 0))
 		alsa_hook_open(alsa.alsa_hook, *pcmp, name, stream, mode);
