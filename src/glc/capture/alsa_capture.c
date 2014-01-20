@@ -21,9 +21,6 @@
     You should have received a copy of the GNU General Public License
     along with glcs.  If not, see <http://www.gnu.org/licenses/>.
  *
- * TODO: This module may end up into glc ALSA functions. Nothing bad happens
- *       except allocate a stream into alsa_hook because read the stream and
- *       alsa_hook highjack write calls but we should use the real ALSA.
  */
 
 /**
