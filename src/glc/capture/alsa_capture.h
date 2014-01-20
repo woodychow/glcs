@@ -23,6 +23,25 @@
 extern "C" {
 #endif
 
+typedef struct {
+	int (*snd_pcm_open)(snd_pcm_t **, const char *, snd_pcm_stream_t, int);
+	int (*snd_pcm_open_lconf)(snd_pcm_t **, const char *, snd_pcm_stream_t,
+				int, snd_config_t *);
+	int (*snd_pcm_close)(snd_pcm_t *);
+	int (*snd_pcm_hw_params)(snd_pcm_t *, snd_pcm_hw_params_t *);
+	snd_pcm_sframes_t (*snd_pcm_writei)(snd_pcm_t *, const void *,
+						snd_pcm_uframes_t);
+	snd_pcm_sframes_t (*snd_pcm_writen)(snd_pcm_t *, void **, snd_pcm_uframes_t);
+	snd_pcm_sframes_t (*snd_pcm_mmap_writei)(snd_pcm_t *, const void *,
+						snd_pcm_uframes_t);
+	snd_pcm_sframes_t (*snd_pcm_mmap_writen)(snd_pcm_t *, void **,
+						snd_pcm_uframes_t);
+	int (*snd_pcm_mmap_begin)(snd_pcm_t *, const snd_pcm_channel_area_t **,
+				  snd_pcm_uframes_t *, snd_pcm_uframes_t *);
+	snd_pcm_sframes_t (*snd_pcm_mmap_commit)(snd_pcm_t *, snd_pcm_uframes_t,
+						snd_pcm_uframes_t);
+} alsa_real_api_t;
+
 /**
  * \brief alsa_capture object
  */
@@ -32,9 +51,11 @@ typedef struct alsa_capture_s* alsa_capture_t;
  * \brief initialize alsa_capture object
  * \param alsa_capture alsa_capture object
  * \param glc glc
+ * \param api real alsa functions addresses
  * \return 0 on success otherwise an error code
  */
-__PUBLIC int alsa_capture_init(alsa_capture_t *alsa_capture, glc_t *glc);
+__PUBLIC int alsa_capture_init(alsa_capture_t *alsa_capture, glc_t *glc,
+				alsa_real_api_t *api);
 
 /**
  * \brief set target buffer

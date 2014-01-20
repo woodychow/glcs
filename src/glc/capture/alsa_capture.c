@@ -39,7 +39,6 @@
 #include <sched.h>
 #include <packetstream.h>
 #include <alsa/asoundlib.h>
-#include <pthread.h>
 
 #include <glc/common/glc.h>
 #include <glc/common/core.h>
@@ -53,6 +52,7 @@
 
 struct alsa_capture_s {
 	glc_t *glc;
+	alsa_real_api_t *api;
 	ps_buffer_t *to;
 	glc_message_header_t msg_hdr;
 	glc_audio_data_header_t hdr;
@@ -88,8 +88,10 @@ struct alsa_capture_s {
 };
 
 static int alsa_capture_open(alsa_capture_t alsa_capture);
-static int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_params);
-static int alsa_capture_init_sw(alsa_capture_t alsa_capture, snd_pcm_sw_params_t *sw_params);
+static int alsa_capture_init_hw(alsa_capture_t alsa_capture,
+				snd_pcm_hw_params_t *hw_params);
+static int alsa_capture_init_sw(alsa_capture_t alsa_capture,
+				snd_pcm_sw_params_t *sw_params);
 static int alsa_capture_init_fds(alsa_capture_t alsa_capture);
 static int alsa_capture_prepare_fds(alsa_capture_t alsa_capture);
 static int alsa_capture_check_state(alsa_capture_t alsa_capture);
@@ -102,11 +104,28 @@ static glc_audio_format_t alsa_capture_glc_format(snd_pcm_format_t pcm_fmt);
 
 static int alsa_capture_xrun(alsa_capture_t alsa_capture, int err);
 
-int alsa_capture_init(alsa_capture_t *alsa_capture, glc_t *glc)
+static alsa_real_api_t default_api = {
+	.snd_pcm_open        = snd_pcm_open,
+	.snd_pcm_open_lconf  = snd_pcm_open_lconf,
+	.snd_pcm_close       = snd_pcm_close,
+	.snd_pcm_hw_params   = snd_pcm_hw_params,
+	.snd_pcm_writei      = snd_pcm_writei,
+	.snd_pcm_writen      = snd_pcm_writen,
+	.snd_pcm_mmap_writei = snd_pcm_mmap_writei,
+	.snd_pcm_mmap_writen = snd_pcm_mmap_writen,
+	.snd_pcm_mmap_begin  = snd_pcm_mmap_begin,
+	.snd_pcm_mmap_commit = snd_pcm_mmap_commit
+};
+
+int alsa_capture_init(alsa_capture_t *alsa_capture, glc_t *glc, alsa_real_api_t *api)
 {
-	*alsa_capture = (alsa_capture_t) calloc(1, sizeof(struct alsa_capture_s));
+	if (unlikely(!(*alsa_capture = (alsa_capture_t) calloc(1, sizeof(struct alsa_capture_s)))))
+		return ENOMEM;
+	if (unlikely(!api))
+		api = &default_api;
 
 	(*alsa_capture)->glc = glc;
+	(*alsa_capture)->api = api;
 	(*alsa_capture)->device = "default";
 	(*alsa_capture)->channels = 2;
 	(*alsa_capture)->rate = 44100;
@@ -234,7 +253,7 @@ int alsa_capture_open(alsa_capture_t alsa_capture)
 		alsa_capture->device);
 
 	/* open pcm */
-	if (unlikely((ret = snd_pcm_open(&alsa_capture->pcm,
+	if (unlikely((ret = alsa_capture->api->snd_pcm_open(&alsa_capture->pcm,
 					alsa_capture->device,
 		SND_PCM_STREAM_CAPTURE, 0)) < 0))
 		goto err;
@@ -371,7 +390,8 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 						 dir)) < 0))
 		goto err;
 
-	if (unlikely((ret = snd_pcm_hw_params(alsa_capture->pcm, hw_params)) < 0)) {
+	if (unlikely((ret = alsa_capture->api->snd_pcm_hw_params(alsa_capture->pcm,
+								hw_params)) < 0)) {
 		glc_log(alsa_capture->glc, GLC_ERROR, "alsa_capture",
 			"Unable to install hw params");
 		goto err;
@@ -641,7 +661,7 @@ end:
 	alsa_capture->fds = NULL;
 	/** TODO: snd_pcm_drain() ?
 	 */
-	snd_pcm_close(alsa_capture->pcm);
+	alsa_capture->api->snd_pcm_close(alsa_capture->pcm);
 	ps_packet_destroy(&packet);
 	return NULL;
 }

@@ -194,7 +194,7 @@ int alsa_start(ps_buffer_t *buffer)
 
 	/* start capture streams */
 	while (stream != NULL) {
-		alsa_capture_init(&stream->capture, alsa.glc);
+		alsa_capture_init(&stream->capture, alsa.glc, NULL);
 		alsa_capture_set_buffer(stream->capture, buffer);
 		alsa_capture_set_device(stream->capture, stream->device);
 		alsa_capture_set_rate(stream->capture, stream->rate);
