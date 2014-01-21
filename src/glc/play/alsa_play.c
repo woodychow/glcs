@@ -162,6 +162,7 @@ void alsa_play_finish_callback(void *priv, int err)
 			 strerror(err), err);
 
 	if (alsa_play->pcm) {
+		snd_pcm_drain(alsa_play->pcm);
 		snd_pcm_close(alsa_play->pcm);
 		alsa_play->pcm = NULL;
 	}
@@ -174,15 +175,18 @@ void alsa_play_finish_callback(void *priv, int err)
 
 int alsa_play_read_callback(glc_thread_state_t *state)
 {
+	int res;
 	alsa_play_t alsa_play = (alsa_play_t ) state->ptr;
 
-	if (state->header.type == GLC_MESSAGE_AUDIO_FORMAT)
-		return alsa_play_hw(alsa_play, (glc_audio_format_message_t *) state->read_data);
-	else if (state->header.type == GLC_MESSAGE_AUDIO_DATA)
-		return alsa_play_play(alsa_play, (glc_audio_data_header_t *) state->read_data,
+	if (unlikely(state->header.type == GLC_MESSAGE_AUDIO_FORMAT))
+		res = alsa_play_hw(alsa_play, (glc_audio_format_message_t *) state->read_data);
+	else if (likely(state->header.type == GLC_MESSAGE_AUDIO_DATA))
+		res = alsa_play_play(alsa_play, (glc_audio_data_header_t *) state->read_data,
 				       &state->read_data[sizeof(glc_audio_data_header_t)]);
+	else
+		res = 0;
 
-	return 0;
+	return res;
 }
 
 int alsa_play_hw(alsa_play_t alsa_play, glc_audio_format_message_t *fmt_msg)
@@ -255,7 +259,8 @@ int alsa_play_hw(alsa_play_t alsa_play, glc_audio_format_message_t *fmt_msg)
 	alsa_play->bufs = (void **) malloc(sizeof(void *) * alsa_play->channels);
 
 	glc_log(alsa_play->glc, GLC_INFORMATION, "alsa_play",
-		"opened pcm %s for playback", alsa_play->device);
+		"opened pcm %s for playback. buffer_time: %u",
+		alsa_play->device, buffer_time);
 
 	return 0;
 err:
@@ -286,12 +291,19 @@ int alsa_play_play(alsa_play_t alsa_play, glc_audio_data_header_t *audio_hdr, ch
 			       (glc_utime_t) alsa_play->rate;
 
 	if (time + alsa_play->silence_threshold + duration < audio_hdr->time) {
-		struct timespec ts = { .tv_sec = (audio_hdr->time - time - duration - alsa_play->silence_threshold)/1000000000,
-				       .tv_nsec = (audio_hdr->time - time - duration - alsa_play->silence_threshold)%1000000000 };
+		struct timespec ts = {
+		.tv_sec = (audio_hdr->time - time - duration - alsa_play->silence_threshold)/1000000000,
+		.tv_nsec = (audio_hdr->time - time - duration - alsa_play->silence_threshold)%1000000000 };
 		nanosleep(&ts,NULL);
 	}
-	else if (time > audio_hdr->time) {
-		glc_log(alsa_play->glc, GLC_DEBUG, "alsa_play", "dropped packet. now %" PRId64 " ts %" PRId64,
+	/*
+	 * This condition determine what will be the initial audio packet.
+	 * it is preferable to be ahead by < duration/2 than behind
+	 * the video by > duration/2
+	 */
+	else if (time > audio_hdr->time + duration/2) {
+		glc_log(alsa_play->glc, GLC_DEBUG, "alsa_play",
+			"dropped packet. now %" PRId64 " ts %" PRId64,
 			time, audio_hdr->time);
 		return 0;
 	}
