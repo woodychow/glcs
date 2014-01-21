@@ -441,7 +441,8 @@ int demux_video_stream_close(demux_t demux)
 		demux->video = demux->video->next;
 
 		if (del->running) {
-			ps_buffer_cancel(&del->buffer);
+			if (glc_state_test(demux->glc, GLC_STATE_CANCEL))
+				ps_buffer_cancel(&del->buffer);
 			demux_video_stream_clean(demux, del);
 		}
 
@@ -550,7 +551,8 @@ int demux_audio_stream_close(demux_t demux)
 		demux->audio = demux->audio->next;
 
 		if (del->running) {
-			ps_buffer_cancel(&del->buffer);
+			if (glc_state_test(demux->glc, GLC_STATE_CANCEL))
+				ps_buffer_cancel(&del->buffer);
 			demux_audio_stream_clean(demux, del);
 		}
 

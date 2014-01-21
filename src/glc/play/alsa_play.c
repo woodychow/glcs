@@ -29,12 +29,12 @@
  */
 
 #include <stdlib.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <packetstream.h>
 #include <alsa/asoundlib.h>
-#include <errno.h>
 #include <sched.h>
 
 #include <glc/common/glc.h>
@@ -98,6 +98,8 @@ int alsa_play_init(alsa_play_t *alsa_play, glc_t *glc)
 	(*alsa_play)->glc = glc;
 	(*alsa_play)->device = "default";
 	(*alsa_play)->id = 1;
+
+	/* 200 ms */
 	(*alsa_play)->silence_threshold = 200000000; /** \todo make configurable? */
 
 	(*alsa_play)->thread.flags = GLC_THREAD_READ;
@@ -187,16 +189,16 @@ int alsa_play_hw(alsa_play_t alsa_play, glc_audio_format_message_t *fmt_msg)
 {
 	snd_pcm_hw_params_t *hw_params = NULL;
 	snd_pcm_access_t access;
-	snd_pcm_uframes_t max_buffer_size;
-	unsigned int min_periods;
-	int dir, ret = 0;
+	unsigned int period_time;
+	unsigned int buffer_time;
+	int dir = 0, ret = 0;
 
-	if (fmt_msg->id != alsa_play->id)
+	if (unlikely(fmt_msg->id != alsa_play->id))
 		return 0;
 
-	alsa_play->flags = fmt_msg->flags;
-	alsa_play->format = fmt_msg->format;
-	alsa_play->rate = fmt_msg->rate;
+	alsa_play->flags    = fmt_msg->flags;
+	alsa_play->format   = fmt_msg->format;
+	alsa_play->rate     = fmt_msg->rate;
 	alsa_play->channels = fmt_msg->channels;
 
 	if (alsa_play->pcm) /* re-open */
@@ -210,8 +212,7 @@ int alsa_play_hw(alsa_play_t alsa_play, glc_audio_format_message_t *fmt_msg)
 	if (unlikely((ret = snd_pcm_open(&alsa_play->pcm, alsa_play->device,
 				SND_PCM_STREAM_PLAYBACK, 0)) < 0))
 		goto err;
-	if (unlikely((ret = snd_pcm_hw_params_malloc(&hw_params)) < 0))
-		goto err;
+	snd_pcm_hw_params_alloca(&hw_params);
 	if (unlikely((ret = snd_pcm_hw_params_any(alsa_play->pcm, hw_params)) < 0))
 		goto err;
 	if (unlikely((ret = snd_pcm_hw_params_set_access(alsa_play->pcm,
@@ -226,16 +227,27 @@ int alsa_play_hw(alsa_play_t alsa_play, glc_audio_format_message_t *fmt_msg)
 	if (unlikely((ret = snd_pcm_hw_params_set_rate(alsa_play->pcm, hw_params,
 					      alsa_play->rate, 0)) < 0))
 		goto err;
-	if (unlikely((ret = snd_pcm_hw_params_get_buffer_size_max(hw_params,
-							 &max_buffer_size)) < 0))
+
+	if (unlikely((ret = snd_pcm_hw_params_get_buffer_time_max(hw_params,
+						&buffer_time, 0))))
 		goto err;
-	if (unlikely((ret = snd_pcm_hw_params_set_buffer_size(alsa_play->pcm,
-						     hw_params, max_buffer_size)) < 0))
+
+	if (buffer_time > 1000000) {
+		glc_log(alsa_play->glc, GLC_INFORMATION, "alsa_play",
+			"buffer time max is %u usec. We will limit it to 1 sec",
+			buffer_time);
+		buffer_time = 1000000;
+	}
+
+	period_time = buffer_time / 4;
+	alsa_play->silence_threshold = period_time*2000;
+
+	if (unlikely((ret = snd_pcm_hw_params_set_period_time_near(alsa_play->pcm,
+		hw_params, &period_time, 0)) < 0))
 		goto err;
-	if (unlikely((ret = snd_pcm_hw_params_get_periods_min(hw_params, &min_periods, &dir)) < 0))
-		goto err;
-	if (unlikely((ret = snd_pcm_hw_params_set_periods(alsa_play->pcm, hw_params,
-						 min_periods < 2 ? 2 : min_periods, dir)) < 0))
+
+	if (unlikely((ret = snd_pcm_hw_params_set_buffer_time_near(alsa_play->pcm,
+		hw_params, &buffer_time, 0)) < 0))
 		goto err;
 	if (unlikely((ret = snd_pcm_hw_params(alsa_play->pcm, hw_params)) < 0))
 		goto err;
@@ -245,14 +257,11 @@ int alsa_play_hw(alsa_play_t alsa_play, glc_audio_format_message_t *fmt_msg)
 	glc_log(alsa_play->glc, GLC_INFORMATION, "alsa_play",
 		"opened pcm %s for playback", alsa_play->device);
 
-	snd_pcm_hw_params_free(hw_params);
 	return 0;
 err:
 	glc_log(alsa_play->glc, GLC_ERROR, "alsa_play",
 		"can't initialize pcm %s: %s (%d)",
 		alsa_play->device, snd_strerror(ret), ret);
-	if (hw_params)
-		snd_pcm_hw_params_free(hw_params);
 	return -ret;
 }
 
@@ -277,12 +286,13 @@ int alsa_play_play(alsa_play_t alsa_play, glc_audio_data_header_t *audio_hdr, ch
 			       (glc_utime_t) alsa_play->rate;
 
 	if (time + alsa_play->silence_threshold + duration < audio_hdr->time) {
-		struct timespec ts = { .tv_sec = (audio_hdr->time - time - duration)/1000000000,
-				       .tv_nsec = (audio_hdr->time - time - duration)%1000000000 };
+		struct timespec ts = { .tv_sec = (audio_hdr->time - time - duration - alsa_play->silence_threshold)/1000000000,
+				       .tv_nsec = (audio_hdr->time - time - duration - alsa_play->silence_threshold)%1000000000 };
 		nanosleep(&ts,NULL);
 	}
 	else if (time > audio_hdr->time) {
-		glc_log(alsa_play->glc, GLC_DEBUG, "alsa_play", "dropped packet");
+		glc_log(alsa_play->glc, GLC_DEBUG, "alsa_play", "dropped packet. now %" PRId64 " ts %" PRId64,
+			time, audio_hdr->time);
 		return 0;
 	}
 
@@ -324,22 +334,27 @@ int alsa_play_play(alsa_play_t alsa_play, glc_audio_data_header_t *audio_hdr, ch
 
 int alsa_play_xrun(alsa_play_t alsa_play, int err)
 {
-	if (err == -EPIPE) {
-		glc_log(alsa_play->glc, GLC_DEBUG, "alsa_play", "buffer underrun");
-		if ((err = snd_pcm_prepare(alsa_play->pcm)) < 0)
-			return -err;
-		return 0;
-	} else if (err == -ESTRPIPE) {
+	switch(err) {
+	case -EPIPE:
+		glc_log(alsa_play->glc, GLC_WARNING, "alsa_play", "underrun");
+		if (unlikely((err = snd_pcm_prepare(alsa_play->pcm)) < 0))
+			break;
+//		err = snd_pcm_start(alsa_play->pcm);
+		break;
+	case -ESTRPIPE:
 		glc_log(alsa_play->glc, GLC_DEBUG, "alsa_play", "suspended");
 		while ((err = snd_pcm_resume(alsa_play->pcm)) == -EAGAIN)
 			sched_yield();
 		if (err < 0) {
-			if ((err = snd_pcm_prepare(alsa_play->pcm)) < 0)
-				return -err;
-			return 0;
+			if (unlikely((err = snd_pcm_prepare(alsa_play->pcm)) < 0))
+				break;
+//			err = snd_pcm_start(alsa_play->pcm);
 		}
-	} else
+		break;
+	default:
 		glc_log(alsa_play->glc, GLC_DEBUG, "alsa_play", "%s (%d)", snd_strerror(err), err);
+		break;
+	}
 	return -err;
 }
 

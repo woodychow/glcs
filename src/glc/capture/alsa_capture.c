@@ -369,8 +369,13 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 						&buffer_time, 0))))
 		goto err;
 
-	if (buffer_time > 500000)
+	if (buffer_time > 500000) {
+		glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture",
+		"buffer time max is %u usec. We will limit it to 500 msec",
+		buffer_time);
+
 		buffer_time = 500000;
+	}
 
 	if (unlikely((ret = snd_pcm_hw_params_set_buffer_time_near(alsa_capture->pcm,
 						hw_params, &buffer_time, 0)) < 0))

@@ -30,6 +30,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <string.h>
 #include <X11/X.h>
 #include <X11/Xlib.h>
@@ -670,7 +671,8 @@ int gl_play_read_callback(glc_thread_state_t *state)
 		/* check if we have to draw this frame */
 		time = glc_state_time(gl_play->glc);
 		if (time > pic_hdr->time + gl_play->skip_threshold) {
-			glc_log(gl_play->glc, GLC_DEBUG, "gl_play", "dropped frame");
+			glc_log(gl_play->glc, GLC_DEBUG, "gl_play",
+				"dropped frame. now %" PRId64 " ts %" PRId64, time, pic_hdr->time);
 			return 0;
 		}
 
