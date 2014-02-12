@@ -45,6 +45,7 @@ struct glc_core_s {
 	long int single_process_num;
 	long int multi_process_num;
 	long int threads_hint;
+	int      allow_rt;
 };
 
 const char *glc_version()
@@ -138,6 +139,16 @@ void glc_compute_threads_hint(glc_t *glc)
 		"single proc num %ld multi proc num %d, threads num per multi proc %d",
 		glc->core->single_process_num, glc->core->multi_process_num,
 		glc->core->threads_hint);
+}
+
+void glc_set_allow_rt(glc_t *glc, int allow)
+{
+	glc->core->allow_rt = allow;
+}
+
+int glc_allow_rt(glc_t *glc)
+{
+	return glc->core->allow_rt;
 }
 
 /**  \} */

@@ -20,6 +20,9 @@ ENDIF (PACKETSTREAM_FOUND)
 
 
 IF (BINARIES)
+  if(COMMAND cmake_policy)
+      cmake_policy(SET CMP0003 NEW)
+  endif(COMMAND cmake_policy)
   ADD_EXECUTABLE(capture capture.c)
   TARGET_LINK_LIBRARIES(capture dl)
   SET_TARGET_PROPERTIES(capture PROPERTIES

@@ -63,8 +63,10 @@ struct glc_thread_private_s {
 
 static void *glc_thread(void *argptr);
 static int glc_thread_block_signals(void);
+static int glc_thread_set_rt_priority(glc_t *glc, int ask_rt);
 
-int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from, ps_buffer_t *to)
+int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from,
+			ps_buffer_t *to)
 {
 	int ret;
 	struct glc_thread_private_s *private;
@@ -147,6 +149,7 @@ void *glc_thread(void *argptr)
 	state.ptr = thread->ptr;
 
 	glc_thread_block_signals();
+	glc_thread_set_rt_priority(private->glc, thread->ask_rt);
 
 	if (thread->flags & GLC_THREAD_READ) {
 		if (unlikely((ret = ps_packet_init(&read, private->from))))
@@ -355,6 +358,20 @@ err:
 	goto finish;
 }
 
+int glc_thread_set_rt_priority(glc_t *glc, int ask_rt)
+{
+	int ret = 0;
+	struct sched_param param;
+	if (ask_rt && glc_allow_rt(glc)) {
+		param.sched_priority = sched_get_priority_min(SCHED_RR);
+		ret = pthread_setschedparam(pthread_self(), SCHED_RR, &param);
+		if (unlikely(ret))
+			glc_log(glc, GLC_ERROR, "glc_thread", "failed to set rtprio: %s (%d)",
+				strerror(ret), ret);
+	}
+	return ret;
+}
+
 /*
  * Signals should be handled by the main thread, nowhere else.
  * I'm using POSIX signal interface here, until someone tells me
@@ -386,6 +403,8 @@ int glc_thread_block_signals(void)
 typedef struct {
 	void *(*start_routine) (void *);
 	void *arg;
+	glc_t *glc;
+	int   ask_rt;
 } glc_simple_thread_param_t;
 
 static void *glc_simple_thread_start_routine(void *arg)
@@ -394,6 +413,7 @@ static void *glc_simple_thread_start_routine(void *arg)
 	void *res;
 
 	glc_thread_block_signals();
+	glc_thread_set_rt_priority(param->glc, param->ask_rt);
 	res  = param->start_routine(param->arg);
 	free(param);
 	return res;
@@ -413,7 +433,9 @@ int glc_simple_thread_create(glc_t *glc, glc_simple_thread_t *thread,
 		return ENOMEM;
 
 	param->start_routine = start_routine;
-	param->arg = arg;
+	param->arg           = arg;
+	param->glc           = glc;
+	param->ask_rt        = thread->ask_rt;
 
 	/* May need to set before starting the thread as some threads
 	 * might use this flag as a stop condition.

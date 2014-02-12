@@ -1,9 +1,26 @@
 /**
- * \file glc/common/thread.h
- * \brief thread interface
- * \author Pyry Haulos <pyry.haulos@gmail.com>
- * \date 2007-2008
- * For conditions of distribution and use, see copyright notice in glc.h
+ * \file glc/common/thread.c
+ * \brief generic stream processor thread adapted from original work (glc) from Pyry Haulos <pyry.haulos@gmail.com>
+ * \author Olivier Langlois <olivier@trillion01.com>
+ * \date 2014
+
+    Copyright 2014 Olivier Langlois
+
+    This file is part of glcs.
+
+    glcs is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    glcs is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with glcs.  If not, see <http://www.gnu.org/licenses/>.
+
  */
 
 /**
@@ -85,6 +102,8 @@ typedef struct {
 	void *ptr;
 	/** number of threads to create */
 	size_t threads;
+	/** flag to indicate that rt prio is desired. */
+	int    ask_rt;
 	/** implementation specific */
 	void *priv;
 
@@ -134,6 +153,8 @@ __PUBLIC int glc_thread_wait(glc_thread_t *thread);
 
 typedef struct {
 	pthread_t thread;
+	/** flag to indicate that rt prio is desired. */
+	int ask_rt;
 	int running;
 } glc_simple_thread_t;
 

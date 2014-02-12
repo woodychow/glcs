@@ -90,6 +90,7 @@ struct play_s {
 	const char *alsa_playback_device;
 
 	int log_level;
+	int allow_rt;
 };
 
 int show_info_value(struct play_s *play, const char *value);
@@ -103,7 +104,6 @@ int export_wav(struct play_s *play);
 int main(int argc, char *argv[])
 {
 	struct play_s play;
-	play.action = action_play;
 	const char *val_str = NULL;
 	int opt, option_index;
 
@@ -126,8 +126,11 @@ int main(int argc, char *argv[])
 		{"verbosity",		1, NULL, 'v'},
 		{"help",		0, NULL, 'h'},
 		{"version",		0, NULL, 'V'},
+		{"rtprio",		0, NULL, 'P'},
 		{0, 0, 0, 0}
 	};
+	memset(&play, 0, sizeof(struct play_s));
+	play.action = action_play;
 	option_index = 0;
 
 	play.fps = 0;
@@ -159,7 +162,7 @@ int main(int argc, char *argv[])
 	play.green_gamma = 1.0;
 	play.blue_gamma  = 1.0;
 
-	while ((opt = getopt_long(argc, argv, "i:a:b:p:y:o:f:r:g:l:td:c:u:s:v:hV",
+	while ((opt = getopt_long(argc, argv, "i:a:b:p:y:o:f:r:g:l:td:c:u:s:v:hVP",
 				  long_options, &optind)) != -1) {
 		switch (opt) {
 		case 'i':
@@ -248,6 +251,10 @@ int main(int argc, char *argv[])
 		case 'V':
 			printf("glc version %s\n", glc_version());
 			return EXIT_SUCCESS;
+			break;
+		case 'P':
+			play.allow_rt = 1;
+			break;
 		case 'h':
 		default:
 			goto usage;
@@ -268,9 +275,10 @@ int main(int argc, char *argv[])
 
 	/* we do global initialization */
 	glc_init(&play.glc);
-	glc_log_set_level(&play.glc, play.log_level);
-	glc_util_log_version(&play.glc);
 	glc_state_init(&play.glc);
+	glc_log_set_level(&play.glc, play.log_level);
+	glc_set_allow_rt(&play.glc, play.allow_rt);
+	glc_util_log_version(&play.glc);
 
 	/* open stream file */
 	if (unlikely(file_init(&play.file, &play.glc)))
@@ -355,6 +363,7 @@ usage:
 	       "  -s, --show=VAL           show stream summary value, possible values are:\n"
 	       "                             all, signature, version, flags, fps,\n"
 	       "                             pid, name, date\n"
+	       "  -P, --rtprio             use rt priority for alsa threads\n"
 	       "  -v, --verbosity=LEVEL    verbosity level\n"
 	       "  -h, --help               show help\n");
 

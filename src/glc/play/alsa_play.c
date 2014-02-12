@@ -107,6 +107,7 @@ int alsa_play_init(alsa_play_t *alsa_play, glc_t *glc)
 	(*alsa_play)->thread.read_callback = &alsa_play_read_callback;
 	(*alsa_play)->thread.finish_callback = &alsa_play_finish_callback;
 	(*alsa_play)->thread.threads = 1;
+	(*alsa_play)->thread.ask_rt  = 1;
 
 	return 0;
 }

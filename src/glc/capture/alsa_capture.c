@@ -132,6 +132,7 @@ int alsa_capture_init(alsa_capture_t *alsa_capture, glc_t *glc, alsa_real_api_t 
 	(*alsa_capture)->skip_data = 1;
 	(*alsa_capture)->interrupt_pipe[0] = -1;
 	(*alsa_capture)->interrupt_pipe[1] = -1;
+	(*alsa_capture)->thread.ask_rt = 1;
 
 	return 0;
 }

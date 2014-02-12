@@ -285,9 +285,9 @@ int alsa_hook_get_stream(alsa_hook_t alsa_hook, snd_pcm_t *pcm, struct alsa_hook
 		pthread_mutex_init(&find->write_mutex, NULL);
 		pthread_spin_init(&find->write_spinlock, 0);
 
-		find->alsa_hook = alsa_hook;
-
-		find->next = alsa_hook->stream;
+		find->alsa_hook     = alsa_hook;
+		find->thread.ask_rt = 1;
+		find->next          = alsa_hook->stream;
 		alsa_hook->stream = find;
 	}
 

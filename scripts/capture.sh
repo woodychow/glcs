@@ -69,6 +69,9 @@ export GLC_COLORSPACE=bgr
 # format is device#rate#channels;device2...
 export GLC_AUDIO_RECORD=hw:0,0#44100#2
 
+# Use SCHED_RR rt priority for ALSA threads
+export GLC_RTPRIO=1
+
 # use GL_PACK_ALIGNMENT 8
 #export GLC_CAPTURE_DWORD_ALIGNED=1
 

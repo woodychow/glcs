@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
 		{ 0 , "compressed",		"GLC_COMPRESSED_BUFFER_SIZE",	NULL},
 		{ 0 , "uncompressed",		"GLC_UNCOMPRESSED_BUFFER_SIZE",	NULL},
 		{ 0 , "unscaled",		"GLC_UNSCALED_BUFFER_SIZE",	NULL},
+		{'P', "rtprio",                 "GLC_RTPRIO",                   NULL},
 		{ 0 , NULL,			NULL,				NULL}
 	};
 
@@ -193,6 +194,7 @@ usage:
 	       "                               default is 25 MiB\n"
 	       "      --unscaled=SIZE        unscaled picture stream buffer size in MiB,\n"
 	       "                               default is 25 MiB\n"
+	       "  -P, --rtprio               use rt priority for alsa threads\n"
 	       "  -V, --version              print glc version and exit\n"
 	       "  -h, --help                 show this help\n");
 	return EXIT_FAILURE;

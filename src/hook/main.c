@@ -91,9 +91,9 @@ __PRIVATE glc_lib_t lib = {NULL, /* dlopen */
 			   };
 __PRIVATE struct main_private_s mpriv;
 
-__PRIVATE int init_buffers();
+__PRIVATE int  init_buffers();
 __PRIVATE void lib_close();
-__PRIVATE int load_environ();
+__PRIVATE int  load_environ();
 __PRIVATE void signal_handler(int signum);
 __PRIVATE void get_real_libc_dlsym();
 __PRIVATE void reload_stream_callback(void *arg);
@@ -102,6 +102,7 @@ void init_glc()
 {
 	struct sigaction new_sighandler, old_sighandler;
 	int ret;
+	char *env_val;
 	mpriv.flags     = 0;
 	mpriv.capture   = 0;
 	mpriv.stop_time = 0;
@@ -152,7 +153,10 @@ void init_glc()
 	}
 
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "glc initialized");
-	glc_log(&mpriv.glc, GLC_DEBUG, "main", "LD_PRELOAD=%s", getenv("LD_PRELOAD"));
+	env_val = getenv("LD_PRELOAD");
+	if (unlikely(env_val))
+		env_val = "(null)";
+	glc_log(&mpriv.glc, GLC_DEBUG, "main", "LD_PRELOAD=%s", env_val);
 	return;
 err:
 	fprintf(stderr, "(glc) %s (%d)\n", strerror(ret), ret);
@@ -214,6 +218,9 @@ int load_environ()
 			mpriv.flags |= MAIN_COMPRESS_NONE;
 	} else
 		mpriv.flags |= MAIN_COMPRESS_LZO;
+
+	if ((env_val = getenv("GLC_RTPRIO")))
+		glc_set_allow_rt(&mpriv.glc, atoi(env_val));
 
 	glc_account_threads(&mpriv.glc,1,!(mpriv.flags & MAIN_COMPRESS_NONE));
 
