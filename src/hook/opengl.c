@@ -78,6 +78,10 @@ __PRIVATE void opengl_draw_indicator();
 
 int opengl_init(glc_t *glc)
 {
+	int ret = 0;
+	unsigned int x, y, w, h;
+	char *env_val;
+
 	opengl.glc = glc;
 	opengl.buffer = opengl.unscaled = NULL;
 	opengl.started = 0;
@@ -85,8 +89,6 @@ int opengl_init(glc_t *glc)
 	opengl.capture_glfinish = 0;
 	opengl.read_buffer = GL_FRONT;
 	opengl.capturing = 0;
-	int ret = 0;
-	unsigned int x, y, w, h;
 
 	glc_log(opengl.glc, GLC_DEBUG, "opengl", "initializing");
 
@@ -96,69 +98,69 @@ int opengl_init(glc_t *glc)
 
 	/* load environment variables */
 	opengl.fps = 30;
-	if (getenv("GLC_FPS"))
-		opengl.fps = atof(getenv("GLC_FPS"));
+	if ((env_val = getenv("GLC_FPS")))
+		opengl.fps = atof(env_val);
 	glc_util_info_fps(opengl.glc, opengl.fps);
 	gl_capture_set_fps(opengl.gl_capture, opengl.fps);
 
-	if (getenv("GLC_COLORSPACE")) {
-		if (!strcmp(getenv("GLC_COLORSPACE"), "420jpeg"))
+	if ((env_val = getenv("GLC_COLORSPACE"))) {
+		if (!strcmp(env_val, "420jpeg"))
 			opengl.convert_ycbcr_420jpeg = 1;
-		else if (!strcmp(getenv("GLC_COLORSPACE"), "bgr"))
+		else if (!strcmp(env_val, "bgr"))
 			opengl.convert_ycbcr_420jpeg = 0;
 		else
 			glc_log(opengl.glc, GLC_WARNING, "opengl",
-				 "unknown colorspace '%s'", getenv("GLC_COLORSPACE"));
+				 "unknown colorspace '%s'", env_val);
 	} else
 		opengl.convert_ycbcr_420jpeg = 1;
 
-	if (getenv("GLC_UNSCALED_BUFFER_SIZE"))
-		opengl.unscaled_size = atoi(getenv("GLC_UNSCALED_BUFFER_SIZE")) * 1024 * 1024;
+	if ((env_val = getenv("GLC_UNSCALED_BUFFER_SIZE")))
+		opengl.unscaled_size = atoi(env_val) * 1024 * 1024;
 	else
 		opengl.unscaled_size = 1024 * 1024 * 25;
 
-	if (getenv("GLC_CAPTURE")) {
-		if (!strcmp(getenv("GLC_CAPTURE"), "front"))
+	if ((env_val = getenv("GLC_CAPTURE"))) {
+		if (!strcmp(env_val, "front"))
 			opengl.read_buffer = GL_FRONT;
-		else if (!strcmp(getenv("GLC_CAPTURE"), "back"))
+		else if (!strcmp(env_val, "back"))
 			opengl.read_buffer = GL_BACK;
 		else
 			glc_log(opengl.glc, GLC_WARNING, "opengl",
-				 "unknown capture buffer '%s'", getenv("GLC_CAPTURE"));
+				 "unknown capture buffer '%s'", env_val);
 	}
 	gl_capture_set_read_buffer(opengl.gl_capture, opengl.read_buffer);
 
-	if (getenv("GLC_CAPTURE_GLFINISH"))
-		opengl.capture_glfinish = atoi(getenv("GLC_CAPTURE_GLFINISH"));
+	if ((env_val = getenv("GLC_CAPTURE_GLFINISH")))
+		opengl.capture_glfinish = atoi(env_val);
 
-	if (getenv("GLC_SCALE"))
-		opengl.scale_factor = atof(getenv("GLC_SCALE"));
+	if ((env_val = getenv("GLC_SCALE")))
+		opengl.scale_factor = atof(env_val);
 
-	if (getenv("GLC_TRY_PBO"))
-		gl_capture_try_pbo(opengl.gl_capture, atoi(getenv("GLC_TRY_PBO")));
+	if ((env_val = getenv("GLC_TRY_PBO")))
+		gl_capture_try_pbo(opengl.gl_capture, atoi(env_val));
 
 	gl_capture_set_pack_alignment(opengl.gl_capture, 8);
-	if (getenv("GLC_CAPTURE_DWORD_ALIGNED")) {
-		if (!atoi(getenv("GLC_CAPTURE_DWORD_ALIGNED")))
+	if ((env_val = getenv("GLC_CAPTURE_DWORD_ALIGNED"))) {
+		if (!atoi(env_val))
 			gl_capture_set_pack_alignment(opengl.gl_capture, 1);
 	}
 
-	if (getenv("GLC_CROP")) {
+	if ((env_val = getenv("GLC_CROP"))) {
 		w = h = x = y = 0;
 
 		/* we need at least 2 values, width and height */
-		if (sscanf(getenv("GLC_CROP"), "%ux%u+%u+%u",
+		if (sscanf(env_val, "%ux%u+%u+%u",
 			   &w, &h, &x, &y) >= 2)
 			gl_capture_crop(opengl.gl_capture, x, y, w, h);
 	}
 
 	gl_capture_draw_indicator(opengl.gl_capture, 0);
-	if (getenv("GLC_INDICATOR"))
-		gl_capture_draw_indicator(opengl.gl_capture, atoi(getenv("GLC_INDICATOR")));
+	if ((env_val = getenv("GLC_INDICATOR")))
+		gl_capture_draw_indicator(opengl.gl_capture, atoi(env_val));
 
 	gl_capture_lock_fps(opengl.gl_capture, 0);
-	if (getenv("GLC_LOCK_FPS"))
-		gl_capture_lock_fps(opengl.gl_capture, atoi(getenv("GLC_LOCK_FPS")));
+	if ((env_val = getenv("GLC_LOCK_FPS")))
+		gl_capture_lock_fps(opengl.gl_capture, atoi(env_val));
 
 	get_real_opengl();
 	glc_account_threads(opengl.glc, 1, (opengl.scale_factor != 1.0) || opengl.convert_ycbcr_420jpeg);

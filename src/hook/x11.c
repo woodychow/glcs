@@ -86,14 +86,15 @@ __PRIVATE int x11_match_key(Display *dpy, XEvent *event, KeySym key, unsigned in
 
 int x11_init(glc_t *glc)
 {
+	char *env_val;
 	x11.glc = glc;
 
 	get_real_x11();
 
-	if (getenv("GLC_HOTKEY")) {
-		if (x11_parse_key(getenv("GLC_HOTKEY"), &x11.capture_key, &x11.capture_key_mask)) {
+	if ((env_val = getenv("GLC_HOTKEY"))) {
+		if (x11_parse_key(env_val, &x11.capture_key, &x11.capture_key_mask)) {
 			glc_log(x11.glc, GLC_WARNING, "x11",
-				 "invalid hotkey '%s'", getenv("GLC_HOTKEY"));
+				 "invalid hotkey '%s'", env_val);
 			glc_log(x11.glc, GLC_WARNING, "x11",
 				 "using default <Shift>F8\n");
 			x11.capture_key_mask = X11_KEY_SHIFT;
@@ -104,10 +105,10 @@ int x11_init(glc_t *glc)
 		x11.capture_key = XK_F8;
 	}
 
-	if (getenv("GLC_RELOAD_HOTKEY")) {
-		if (x11_parse_key(getenv("GLC_RELOAD_HOTKEY"), &x11.reload_key, &x11.reload_key_mask)) {
+	if ((env_val = getenv("GLC_RELOAD_HOTKEY"))) {
+		if (x11_parse_key(env_val, &x11.reload_key, &x11.reload_key_mask)) {
 			glc_log(x11.glc, GLC_WARNING, "x11",
-				 "invalid reload hotkey '%s'", getenv("GLC_HOTKEY"));
+				 "invalid reload hotkey '%s'", env_val);
 			glc_log(x11.glc, GLC_WARNING, "x11",
 				 "using default <Shift>F9\n");
 			x11.reload_key_mask = X11_KEY_SHIFT;
