@@ -602,7 +602,7 @@ int gl_capture_create_pbo(gl_capture_t gl_capture, struct gl_capture_video_strea
 	gl_capture->glGenBuffers(1, &video->pbo);
 	gl_capture->glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, video->pbo);
 	gl_capture->glBufferData(GL_PIXEL_PACK_BUFFER_ARB, video->row * video->ch,
-		         NULL, GL_STREAM_READ);
+				NULL, GL_STREAM_READ);
 
 	glPopAttrib();
 	gl_capture->glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, binding);
@@ -642,7 +642,7 @@ int gl_capture_read_pbo(gl_capture_t gl_capture, struct gl_capture_video_stream_
 {
 	GLvoid *buf;
 	GLint binding;
-	
+
 	glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING_ARB, &binding);
 
 	gl_capture->glBindBuffer(GL_PIXEL_PACK_BUFFER_ARB, video->pbo);
@@ -862,8 +862,14 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 					    &msg, sizeof(glc_message_header_t)))))
 		goto cancel;
 
-	/* if we are using PBO we will actually write previous picture to buffer */
-	pic.time = (gl_capture->flags & GL_CAPTURE_USE_PBO)?video->pbo_time:now;
+	/*
+	 * if we are using PBO we will actually write previous picture to buffer.
+	 * Also, make sure that pbo_time is not in the future. This could happen if
+	 * the state time is reset by reloading the capture between a pbo start
+	 * and a pbo read.
+	 */
+	pic.time = (gl_capture->flags & GL_CAPTURE_USE_PBO &&
+		    video->pbo_time < now)?video->pbo_time:now;
 	pic.id   = video->id;
 	if (unlikely((ret = ps_packet_write(&video->packet,
 					    &pic, sizeof(glc_video_frame_header_t)))))
