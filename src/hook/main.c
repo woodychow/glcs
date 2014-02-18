@@ -66,7 +66,7 @@ struct main_private_s {
 	ps_buffer_t *compressed;
 	size_t uncompressed_size, compressed_size;
 
-	file_t file;
+	sink_t sink;
 	pack_t pack;
 
 	unsigned int capture;
@@ -154,7 +154,7 @@ void init_glc()
 
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "glc initialized");
 	env_val = getenv("LD_PRELOAD");
-	if (unlikely(env_val))
+	if (unlikely(!env_val))
 		env_val = "(null)";
 	glc_log(&mpriv.glc, GLC_DEBUG, "main", "LD_PRELOAD=%s", env_val);
 	return;
@@ -264,11 +264,12 @@ int open_stream()
 	glc_util_info_create(&mpriv.glc, &stream_info, &info_name, info_date);
 	mpriv.stream_file = glc_util_format_filename(mpriv.stream_file_fmt, mpriv.capture);
 
-	if (unlikely((ret = file_set_sync(mpriv.file, (mpriv.flags & MAIN_SYNC) ? 1 : 0))))
+	if (unlikely((ret = mpriv.sink->ops->set_sync(mpriv.sink,
+						(mpriv.flags & MAIN_SYNC) ? 1 : 0))))
 		goto at_exit;
-	if (unlikely((ret = file_open_target(mpriv.file, mpriv.stream_file))))
+	if (unlikely((ret = mpriv.sink->ops->open_target(mpriv.sink, mpriv.stream_file))))
 		goto at_exit;
-	ret = file_write_info(mpriv.file, stream_info,
+	ret = mpriv.sink->ops->write_info(mpriv.sink, stream_info,
 				info_name, info_date);
 
 	/*
@@ -291,7 +292,7 @@ int close_stream()
 	free(mpriv.stream_file);
 	mpriv.stream_file = NULL;
 
-	ret = file_close_target(mpriv.file);
+	ret = mpriv.sink->ops->close_target(mpriv.sink);
 	return ret;
 }
 
@@ -302,13 +303,13 @@ void reload_stream_callback(void *arg)
 
 	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "reloading stream");
 
-	if (unlikely((ret = file_write_eof(mpriv.file))))
+	if (unlikely((ret = mpriv.sink->ops->write_eof(mpriv.sink))))
 		goto err;
 	if (unlikely((ret = close_stream())))
 		goto err;
 	if (unlikely((ret = open_stream())))
 		goto err;
-	if (unlikely((ret = file_write_state(mpriv.file))))
+	if (unlikely((ret = mpriv.sink->ops->write_state(mpriv.sink))))
 		goto err;
 
 	return;
@@ -396,16 +397,18 @@ int start_glc()
 	glc_compute_threads_hint(&mpriv.glc);
 
 	/* initialize file & write stream info */
-	if (unlikely((ret = file_init(&mpriv.file, &mpriv.glc))))
+	if (unlikely((ret = file_sink_init(&mpriv.sink, &mpriv.glc))))
 		return ret;
 	/* NOTE at the moment only reload is used as callback */
-	if (unlikely((ret = file_set_callback(mpriv.file, &reload_stream_callback))))
+	if (unlikely((ret = mpriv.sink->ops->set_callback(mpriv.sink,
+							&reload_stream_callback))))
 		return ret;
 	if (unlikely((ret = open_stream())))
 		return ret;
 
 	if (!(mpriv.flags & MAIN_COMPRESS_NONE)) {
-		if (unlikely((ret = file_write_process_start(mpriv.file, mpriv.compressed))))
+		if (unlikely((ret = mpriv.sink->ops->write_process_start(mpriv.sink,
+								mpriv.compressed))))
 			return ret;
 
 		if (unlikely((ret = pack_init(&mpriv.pack, &mpriv.glc))))
@@ -423,7 +426,8 @@ int start_glc()
 			return ret;
 	} else {
 		glc_log(&mpriv.glc, GLC_WARNING, "main", "compression disabled");
-		if (unlikely((ret = file_write_process_start(mpriv.file, mpriv.uncompressed))))
+		if (unlikely((ret = mpriv.sink->ops->write_process_start(mpriv.sink,
+								mpriv.uncompressed))))
 			return ret;
 	}
 
@@ -501,9 +505,10 @@ void lib_close()
 			pack_process_wait(mpriv.pack);
 			pack_destroy(mpriv.pack);
 		}
-		file_write_process_wait(mpriv.file);
+		mpriv.sink->ops->write_process_wait(mpriv.sink);
 		close_stream();
-		file_destroy(mpriv.file);
+		mpriv.sink->ops->destroy(mpriv.sink);
+		mpriv.sink = NULL;
 	}
 
 	if (mpriv.compressed) {

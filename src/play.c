@@ -65,7 +65,7 @@ struct play_s {
 	glc_stream_info_t stream_info;
 	char *info_name, *info_date;
 
-	file_t file;
+	source_t file;
 	const char *stream_file;
 
 	double scale_factor;
@@ -281,13 +281,13 @@ int main(int argc, char *argv[])
 	glc_util_log_version(&play.glc);
 
 	/* open stream file */
-	if (unlikely(file_init(&play.file, &play.glc)))
+	if (unlikely(file_source_init(&play.file, &play.glc)))
 		return EXIT_FAILURE;
-	if (unlikely(file_open_source(play.file, play.stream_file)))
+	if (unlikely(play.file->ops->open_source(play.file, play.stream_file)))
 		return EXIT_FAILURE;
 
 	/* load information and check that the file is valid */
-	if (unlikely(file_read_info(play.file, &play.stream_info, &play.info_name,
+	if (unlikely(play.file->ops->read_info(play.file, &play.stream_info, &play.info_name,
 					&play.info_date)))
 		return EXIT_FAILURE;
 
@@ -326,8 +326,9 @@ int main(int argc, char *argv[])
 	}
 
 	/* our cleanup */
-	file_close_source(play.file);
-	file_destroy(play.file);
+	play.file->ops->close_source(play.file);
+	play.file->ops->destroy(play.file);
+	play.file = NULL;
 
 	free(play.info_name);
 	free(play.info_date);
@@ -520,7 +521,7 @@ int play_stream(struct play_s *play)
 		goto err;
 
 	/* the pipeline is ready - lets give it some data */
-	if (unlikely((ret = file_read(play->file, &compressed_buffer))))
+	if (unlikely((ret = play->file->ops->read(play->file, &compressed_buffer))))
 		goto err;
 
 	/* we've done our part - just wait for the threads */
@@ -591,7 +592,7 @@ int stream_info(struct play_s *play)
 		goto err;
 	if (unlikely((ret = info_process_start(info, &uncompressed_buffer))))
 		goto err;
-	if (unlikely((ret = file_read(play->file, &compressed_buffer))))
+	if (unlikely((ret = play->file->ops->read(play->file, &compressed_buffer))))
 		goto err;
 
 	/* wait for threads and do cleanup */
@@ -676,7 +677,7 @@ int export_img(struct play_s *play)
 		goto err;
 
 	/* ok, read the file */
-	if (unlikely((ret = file_read(play->file, &compressed_buffer))))
+	if (unlikely((ret = play->file->ops->read(play->file, &compressed_buffer))))
 		goto err;
 
 	/* wait 'till its done and clean up the mess... */
@@ -770,7 +771,7 @@ int export_yuv4mpeg(struct play_s *play)
 		goto err;
 
 	/* feed it with data */
-	if (unlikely((ret = file_read(play->file, &compressed_buffer))))
+	if (unlikely((ret = play->file->ops->read(play->file, &compressed_buffer))))
 		goto err;
 
 	/* threads will do the dirty work... */
@@ -837,7 +838,7 @@ int export_wav(struct play_s *play)
 	if (unlikely((ret = wav_process_start(wav, &uncompressed_buffer))))
 		goto err;
 
-	if (unlikely((ret = file_read(play->file, &compressed_buffer))))
+	if (unlikely((ret = play->file->ops->read(play->file, &compressed_buffer))))
 		goto err;
 
 	/* wait and clean up */
