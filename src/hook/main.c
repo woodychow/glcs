@@ -98,6 +98,14 @@ __PRIVATE int  load_environ();
 __PRIVATE void signal_handler(int signum);
 __PRIVATE void get_real_libc_dlsym();
 __PRIVATE void reload_stream_callback(void *arg);
+__PRIVATE void increment_capture();
+__PRIVATE int open_stream();
+__PRIVATE int close_stream();
+__PRIVATE int reload_stream();
+__PRIVATE int is_stream_open()
+{
+	return mpriv.stream_file;
+}
 
 void init_glc()
 {
@@ -344,13 +352,22 @@ void increment_capture()
 	mpriv.capture++;
 }
 
+int reload_capture()
+{
+	if (is_stream_open()) {
+		increment_capture();
+		reload_stream();
+	}
+	return start_capture();
+}
+
 int start_capture()
 {
 	int ret;
-	if (lib.flags & LIB_CAPTURING)
+	if (unlikely(lib.flags & LIB_CAPTURING))
 		return EAGAIN;
 
-	if (!lib.running) {
+	if (unlikely(!lib.running)) {
 		if (unlikely((ret = start_glc())))
 			goto err;
 	}
@@ -376,7 +393,7 @@ int stop_capture()
 {
 	int ret;
 
-	if (!(lib.flags & LIB_CAPTURING))
+	if (unlikely(!(lib.flags & LIB_CAPTURING)))
 		return EAGAIN;
 
 	if (unlikely((ret = alsa_capture_stop_all())))
