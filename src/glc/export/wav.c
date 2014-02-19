@@ -232,7 +232,7 @@ int wav_write_hdr(wav_t wav, glc_audio_format_message_t *fmt_msg)
 	
 	filename = (char *) malloc(1024);
 	snprintf(filename, 1023, wav->filename_format, ++wav->file_count);
-	glc_log(wav->glc, GLC_INFORMATION, "wav", "opening %s for writing", filename);
+	glc_log(wav->glc, GLC_INFO, "wav", "opening %s for writing", filename);
 	wav->to = fopen(filename, "w");
 	if (unlikely(!wav->to)) {
 		glc_log(wav->glc, GLC_ERROR, "wav", "can't open %s", filename);
@@ -291,7 +291,7 @@ int wav_write_audio(wav_t wav, glc_audio_data_header_t *audio_hdr, char *data)
 
 		wav->time += ((glc_utime_t) need_silence * (glc_utime_t) 1000000) / (glc_utime_t) wav->bps;
 		if (wav->interpolate) {
-			glc_log(wav->glc, GLC_WARNING, "wav", "writing %zd bytes of silence", need_silence);
+			glc_log(wav->glc, GLC_WARN, "wav", "writing %zd bytes of silence", need_silence);
 			while (need_silence > 0) {
 				write_silence = need_silence > wav->silence_size ? wav->silence_size : need_silence;
 				fwrite(wav->silence, 1, write_silence, wav->to);

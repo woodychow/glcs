@@ -238,7 +238,7 @@ int alsa_play_hw(alsa_play_t alsa_play, glc_audio_format_message_t *fmt_msg)
 		goto err;
 
 	if (buffer_time > 1000000) {
-		glc_log(alsa_play->glc, GLC_INFORMATION, "alsa_play",
+		glc_log(alsa_play->glc, GLC_INFO, "alsa_play",
 			"buffer time max is %u usec. We will limit it to 1 sec",
 			buffer_time);
 		buffer_time = 1000000;
@@ -259,7 +259,7 @@ int alsa_play_hw(alsa_play_t alsa_play, glc_audio_format_message_t *fmt_msg)
 
 	alsa_play->bufs = (void **) malloc(sizeof(void *) * alsa_play->channels);
 
-	glc_log(alsa_play->glc, GLC_INFORMATION, "alsa_play",
+	glc_log(alsa_play->glc, GLC_INFO, "alsa_play",
 		"opened pcm %s for playback. buffer_time: %u",
 		alsa_play->device, buffer_time);
 
@@ -349,7 +349,7 @@ int alsa_play_xrun(alsa_play_t alsa_play, int err)
 {
 	switch(err) {
 	case -EPIPE:
-		glc_log(alsa_play->glc, GLC_WARNING, "alsa_play", "underrun");
+		glc_log(alsa_play->glc, GLC_WARN, "alsa_play", "underrun");
 		if (unlikely((err = snd_pcm_prepare(alsa_play->pcm)) < 0))
 			break;
 //		err = snd_pcm_start(alsa_play->pcm);

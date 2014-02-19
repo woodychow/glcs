@@ -40,7 +40,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <packetstream.h>
 #include <errno.h>
 
 #include <unistd.h>
@@ -49,7 +48,6 @@
 #include <sys/file.h>
 #include <fcntl.h>
 
-#include <glc/common/glc.h>
 #include <glc/common/state.h>
 #include <glc/common/core.h>
 #include <glc/common/log.h>
@@ -103,7 +101,6 @@ static int file_write_message(file_sink_t *file, glc_message_header_t *header,
 static int file_write_state_callback(glc_message_header_t *header, void *message,
 				     size_t message_size, void *arg);
 static int file_test_stream_version(u_int32_t version);
-
 static int file_set_target(struct file_private_s *mpriv, int fd);
 
 static int file_set_sync(sink_t sink, int sync);
@@ -158,7 +155,7 @@ int file_sink_init(sink_t *sink, glc_t *glc)
 	file->mpriv.glc      = glc;
 	file->thread.flags   = GLC_THREAD_READ;
 	file->thread.ptr     = file;
-	file->thread.read_callback = &file_read_callback;
+	file->thread.read_callback   = &file_read_callback;
 	file->thread.finish_callback = &file_finish_callback;
 	file->thread.threads = 1;
 
@@ -219,7 +216,7 @@ int file_open_target(sink_t sink, const char *filename)
 	if (unlikely(file->mpriv.handle))
 		return EBUSY;
 
-	glc_log(file->mpriv.glc, GLC_INFORMATION, "file",
+	glc_log(file->mpriv.glc, GLC_INFO, "file",
 		 "opening %s for writing stream (%s)",
 		 filename,
 		 file->sync ? "sync" : "no sync");
@@ -528,7 +525,7 @@ int file_open_source(source_t source, const char *filename)
 	if (unlikely(file->mpriv.handle))
 		return EBUSY;
 
-	glc_log(file->mpriv.glc, GLC_INFORMATION, "file",
+	glc_log(file->mpriv.glc, GLC_INFO, "file",
 		 "opening %s for reading stream", filename);
 
 	fd = open(filename, O_RDONLY);
@@ -641,7 +638,7 @@ int file_read_info(source_t source, glc_stream_info_t *info,
 			 "unsupported stream version 0x%02x", info->version);
 		return ENOTSUP;
 	}
-	glc_log(file->mpriv.glc, GLC_INFORMATION, "file", "stream version 0x%02x", info->version);
+	glc_log(file->mpriv.glc, GLC_INFO, "file", "stream version 0x%02x", info->version);
 	file->stream_version = info->version; /* copy version */
 
 	if (info->name_size > 0) {

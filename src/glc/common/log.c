@@ -79,7 +79,7 @@ int glc_log_open_file(glc_t *glc, const char *filename)
 		return ret;
 	}
 
-	glc_log(glc, GLC_INFORMATION, "log", "opened %s for log", filename);
+	glc_log(glc, GLC_INFO, "log", "opened %s for log", filename);
 	return 0;
 }
 
@@ -112,7 +112,7 @@ FILE *glc_log_get_stream(glc_t *glc)
 
 int glc_log_close(glc_t *glc)
 {
-	glc_log(glc, GLC_INFORMATION, "log", "log closed");
+	glc_log(glc, GLC_INFO, "log", "log closed");
 	if (unlikely(fclose(glc->log->stream)))
 		return errno;
 	glc->log->stream = glc->log->default_stream;
@@ -150,13 +150,13 @@ void glc_log_write_prefix(glc_t *glc, FILE *stream, int level, const char *modul
 		case GLC_ERROR:
 			level_str = "error";
 			break;
-		case GLC_WARNING:
+		case GLC_WARN:
 			level_str = "warning";
 			break;
-		case GLC_PERFORMANCE:
+		case GLC_PERF:
 			level_str = "perf";
 			break;
-		case GLC_INFORMATION:
+		case GLC_INFO:
 			level_str = "info";
 			break;
 		case GLC_DEBUG:

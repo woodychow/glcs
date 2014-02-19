@@ -172,10 +172,10 @@ int glc_util_log_info(glc_t *glc)
 	glc_util_app_name(glc, &name, &unused);
 	glc_util_utc_date(glc,  date, &unused);
 
-	glc_log(glc, GLC_INFORMATION, "util", "system information\n" \
+	glc_log(glc, GLC_INFO, "util", "system information\n" \
 		"  threads hint = %ld", glc_threads_hint(glc));
 
-	glc_log(glc, GLC_INFORMATION, "util", "stream information\n" \
+	glc_log(glc, GLC_INFO, "util", "stream information\n" \
 		"  signature    = 0x%08x\n" \
 		"  version      = 0x%02x\n" \
 		"  flags        = %d\n" \
@@ -192,7 +192,7 @@ int glc_util_log_info(glc_t *glc)
 
 int glc_util_log_version(glc_t *glc)
 {
-	glc_log(glc, GLC_INFORMATION, "util",
+	glc_log(glc, GLC_INFO, "util",
 		"version %s", GLC_VERSION);
 	glc_log(glc, GLC_DEBUG, "util",
 		"%s %s, %s", __DATE__, __TIME__, __VERSION__);

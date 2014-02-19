@@ -321,7 +321,7 @@ int rgb_init_lookup(rgb_t rgb)
 	unsigned int Y, Cb, Cr, color;
 	size_t lookup_size = (1 << LOOKUP_BITS) * (1 << LOOKUP_BITS) * (1 << LOOKUP_BITS) * 3;
 
-	glc_log(rgb->glc, GLC_INFORMATION, "rgb",
+	glc_log(rgb->glc, GLC_INFO, "rgb",
 		 "using %d bit lookup table (%zd bytes)", LOOKUP_BITS, lookup_size);
 	rgb->lookup_table = malloc(lookup_size);
 

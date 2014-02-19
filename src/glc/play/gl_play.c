@@ -375,7 +375,7 @@ int gl_play_init_texture_information(gl_play_t gl_play)
 	if (gl_extensions) {
 		if (strstr(gl_extensions, "GL_ARB_texture_non_power_of_two")) {
 			gl_play->flags |= GL_PLAY_NON_POWER_OF_TWO;
-			glc_log(gl_play->glc, GLC_INFORMATION, "gl_play",
+			glc_log(gl_play->glc, GLC_INFO, "gl_play",
 				"GL_ARB_texture_non_power_of_two supported");
 		}
 	}
@@ -396,7 +396,7 @@ int gl_play_init_texture_information(gl_play_t gl_play)
 		gl_play->max_texture_size *= 2;
 	}
 
-	glc_log(gl_play->glc, GLC_INFORMATION, "gl_play",
+	glc_log(gl_play->glc, GLC_INFO, "gl_play",
 		"maximum texture size is %ux%u",
 		gl_play->max_texture_size,
 		gl_play->max_texture_size);

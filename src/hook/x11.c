@@ -93,9 +93,9 @@ int x11_init(glc_t *glc)
 
 	if ((env_val = getenv("GLC_HOTKEY"))) {
 		if (x11_parse_key(env_val, &x11.capture_key, &x11.capture_key_mask)) {
-			glc_log(x11.glc, GLC_WARNING, "x11",
+			glc_log(x11.glc, GLC_WARN, "x11",
 				 "invalid hotkey '%s'", env_val);
-			glc_log(x11.glc, GLC_WARNING, "x11",
+			glc_log(x11.glc, GLC_WARN, "x11",
 				 "using default <Shift>F8\n");
 			x11.capture_key_mask = X11_KEY_SHIFT;
 			x11.capture_key = XK_F8;
@@ -107,9 +107,9 @@ int x11_init(glc_t *glc)
 
 	if ((env_val = getenv("GLC_RELOAD_HOTKEY"))) {
 		if (x11_parse_key(env_val, &x11.reload_key, &x11.reload_key_mask)) {
-			glc_log(x11.glc, GLC_WARNING, "x11",
+			glc_log(x11.glc, GLC_WARN, "x11",
 				 "invalid reload hotkey '%s'", env_val);
-			glc_log(x11.glc, GLC_WARNING, "x11",
+			glc_log(x11.glc, GLC_WARN, "x11",
 				 "using default <Shift>F9\n");
 			x11.reload_key_mask = X11_KEY_SHIFT;
 			x11.reload_key = XK_F9;

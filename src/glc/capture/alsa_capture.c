@@ -209,12 +209,12 @@ int alsa_capture_start(alsa_capture_t alsa_capture)
 	}
 
 	if (likely(alsa_capture->skip_data != 0)) {
-		glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture",
+		glc_log(alsa_capture->glc, GLC_INFO, "alsa_capture",
 			 "starting device %s", alsa_capture->device);
 		alsa_capture->skip_data = 0;
 		write(alsa_capture->interrupt_pipe[1],"",1);
 	} else
-		glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture",
+		glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture",
 			 "device %s already started", alsa_capture->device);
 
 	return 0;
@@ -226,12 +226,12 @@ int alsa_capture_stop(alsa_capture_t alsa_capture)
 		return EINVAL;
 
 	if (likely(alsa_capture->skip_data == 0)) {
-		glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture",
+		glc_log(alsa_capture->glc, GLC_INFO, "alsa_capture",
 			 "stopping device %s", alsa_capture->device);
 		alsa_capture->skip_data = 1;
 		write(alsa_capture->interrupt_pipe[1],"",1);
 	} else
-		glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture",
+		glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture",
 			 "device %s already stopped", alsa_capture->device);
 
 	return 0;
@@ -246,7 +246,7 @@ int alsa_capture_open(alsa_capture_t alsa_capture)
 	glc_message_header_t msg_hdr;
 	glc_audio_format_message_t fmt_msg;
 
-	glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture",
+	glc_log(alsa_capture->glc, GLC_INFO, "alsa_capture",
 		"opening device %s",
 		alsa_capture->device);
 
@@ -371,7 +371,7 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 		goto err;
 
 	if (buffer_time > 500000) {
-		glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture",
+		glc_log(alsa_capture->glc, GLC_INFO, "alsa_capture",
 		"buffer time max is %u usec. We will limit it to 500 msec",
 		buffer_time);
 
@@ -408,7 +408,7 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 						&period_time, 0)) < 0))
 		goto err;
 
-	glc_log(alsa_capture->glc, GLC_INFORMATION, "alsa_capture",
+	glc_log(alsa_capture->glc, GLC_INFO, "alsa_capture",
 		"buffer size: %d num periods: %d period len %u usec", max_buffer_size,
 		alsa_capture->min_periods, period_time);
 err:
@@ -488,7 +488,7 @@ int alsa_capture_check_state(alsa_capture_t alsa_capture)
 						"snd_pcm_prepare error: %s (%d)", strerror(-ret), -ret);
 					goto err;
 				}
-				glc_log(alsa_capture->glc, GLC_INFORMATION,
+				glc_log(alsa_capture->glc, GLC_INFO,
 					"alsa_capture", "snd_pcm_drop()");
 				ret = 1;
 			}
@@ -498,7 +498,7 @@ int alsa_capture_check_state(alsa_capture_t alsa_capture)
 					"snd_pcm_start error: %s (%d)", strerror(-ret), -ret);
 				goto err;
 			}
-			glc_log(alsa_capture->glc, GLC_INFORMATION,
+			glc_log(alsa_capture->glc, GLC_INFO,
 				"alsa_capture", "snd_pcm_start()");
 			ret = 1;
 		}
@@ -552,7 +552,7 @@ int alsa_capture_read_pcm(alsa_capture_t alsa_capture, char *dma)
 			count  -= r;
 			dma    += r * alsa_capture->bytes_per_frame;
 			if (unlikely(count))
-				glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture",
+				glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture",
 					"read %ld, expected %zd",
 				 	r * alsa_capture->bytes_per_frame,
 				 	alsa_capture->hdr.size);
@@ -694,7 +694,7 @@ int alsa_capture_xrun(alsa_capture_t alsa_capture, int err)
 {
 	switch(err) {
 	case -EPIPE:
-		glc_log(alsa_capture->glc, GLC_WARNING, "alsa_capture", "overrun");
+		glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture", "overrun");
 		if (unlikely((err = snd_pcm_prepare(alsa_capture->pcm)) < 0))
 			break;
 		err = snd_pcm_start(alsa_capture->pcm);

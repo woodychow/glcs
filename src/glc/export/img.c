@@ -176,7 +176,7 @@ void img_finish_callback(void *ptr, int err)
 {
 	img_t img = (img_t) ptr;
 
-	glc_log(img->glc, GLC_INFORMATION, "img", "%d images written", img->i);
+	glc_log(img->glc, GLC_INFO, "img", "%d images written", img->i);
 
 	if (unlikely(err))
 		glc_log(img->glc, GLC_ERROR, "img", "%s (%d)", strerror(err), err);
@@ -274,7 +274,7 @@ int img_write_bmp(img_t img, const unsigned char *pic,
 	unsigned int val;
 	unsigned int i;
 
-	glc_log(img->glc, GLC_INFORMATION, "img",
+	glc_log(img->glc, GLC_INFO, "img",
 		 "opening %s for writing (BMP)", filename);
 	if (unlikely(!(fd = fopen(filename, "w"))))
 		return errno;
@@ -311,7 +311,7 @@ int img_write_png(img_t img, const unsigned char *pic,
 	unsigned int i;
 	FILE *fd;
 
-	glc_log(img->glc, GLC_INFORMATION, "img",
+	glc_log(img->glc, GLC_INFO, "img",
 		 "opening %s for writing (PNG)", filename);
 	if (unlikely(!(fd = fopen(filename, "w"))))
 		return errno;

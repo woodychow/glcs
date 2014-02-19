@@ -206,10 +206,10 @@ int gl_capture_set_buffer(gl_capture_t gl_capture, ps_buffer_t *buffer)
 int gl_capture_set_read_buffer(gl_capture_t gl_capture, GLenum buffer)
 {
 	if (buffer == GL_FRONT)
-		glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 			 "reading frames from GL_FRONT");
 	else if (buffer == GL_BACK)
-		glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 			 "reading frames from GL_BACK");
 	else {
 		glc_log(gl_capture->glc, GLC_ERROR, "gl_capture",
@@ -227,7 +227,7 @@ int gl_capture_set_fps(gl_capture_t gl_capture, double fps)
 		return EINVAL;
 
 	gl_capture->fps = 1000000000 / fps;
-	glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+	glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 		 "capturing at %f fps", fps);
 
 	return 0;
@@ -236,10 +236,10 @@ int gl_capture_set_fps(gl_capture_t gl_capture, double fps)
 int gl_capture_set_pack_alignment(gl_capture_t gl_capture, GLint pack_alignment)
 {
 	if (pack_alignment == 1)
-		glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 			 "reading data as byte aligned");
 	else if (pack_alignment == 8)
-		glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 			 "reading data as dword aligned");
 	else {
 		glc_log(gl_capture->glc, GLC_ERROR, "gl_capture",
@@ -257,7 +257,7 @@ int gl_capture_try_pbo(gl_capture_t gl_capture, int try_pbo)
 		gl_capture->flags |= GL_CAPTURE_TRY_PBO;
 	} else {
 		if (unlikely(gl_capture->flags & GL_CAPTURE_USE_PBO)) {
-			glc_log(gl_capture->glc, GLC_WARNING, "gl_capture",
+			glc_log(gl_capture->glc, GLC_WARN, "gl_capture",
 				 "can't disable PBO; it is in use");
 			return EAGAIN;
 		}
@@ -273,11 +273,11 @@ int gl_capture_try_pbo(gl_capture_t gl_capture, int try_pbo)
 int gl_capture_set_pixel_format(gl_capture_t gl_capture, GLenum format)
 {
 	if (format == GL_BGRA) {
-		glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 			 "reading frames in GL_BGRA format");
 		gl_capture->bpp = 4;
 	} else if (format == GL_BGR) {
-		glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 			 "reading frames in GL_BGR format");
 		gl_capture->bpp = 3;
 	} else {
@@ -296,7 +296,7 @@ int gl_capture_draw_indicator(gl_capture_t gl_capture, int draw_indicator)
 		gl_capture->flags |= GL_CAPTURE_DRAW_INDICATOR;
 
 		if (gl_capture->capture_buffer == GL_FRONT)
-			glc_log(gl_capture->glc, GLC_WARNING, "gl_capture",
+			glc_log(gl_capture->glc, GLC_WARN, "gl_capture",
 				 "indicator doesn't work well when capturing from GL_FRONT");
 	} else
 		gl_capture->flags &= ~GL_CAPTURE_DRAW_INDICATOR;
@@ -349,10 +349,10 @@ int gl_capture_start(gl_capture_t gl_capture)
 	}
 
 	if (gl_capture->flags & GL_CAPTURE_CAPTURING)
-		glc_log(gl_capture->glc, GLC_WARNING, "gl_capture",
+		glc_log(gl_capture->glc, GLC_WARN, "gl_capture",
 			 "capturing is already active");
 	else
-		glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 			 "starting capturing");
 
 	gl_capture->flags |= GL_CAPTURE_CAPTURING;
@@ -363,10 +363,10 @@ int gl_capture_start(gl_capture_t gl_capture)
 int gl_capture_stop(gl_capture_t gl_capture)
 {
 	if (gl_capture->flags & GL_CAPTURE_CAPTURING)
-		glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 			 "stopping capturing");
 	else
-		glc_log(gl_capture->glc, GLC_WARNING, "gl_capture",
+		glc_log(gl_capture->glc, GLC_WARN, "gl_capture",
 			 "capturing is already stopped");
 
 	gl_capture->flags &= ~GL_CAPTURE_CAPTURING;
@@ -396,7 +396,7 @@ int gl_capture_destroy(gl_capture_t gl_capture)
 		del = gl_capture->video;
 		gl_capture->video = gl_capture->video->next;
 
-		glc_log(gl_capture->glc, GLC_PERFORMANCE, "gl_capture",
+		glc_log(gl_capture->glc, GLC_PERF, "gl_capture",
 			"captured %u frames in %llu nsec",
 			del->num_frames, del->capture_time_ns);
 
@@ -584,7 +584,7 @@ int gl_capture_init_pbo(gl_capture_t gl_capture)
 	if (unlikely(!gl_capture->glUnmapBuffer))
 		return ENOTSUP;
 
-	glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+	glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 		 "using GL_ARB_pixel_buffer_object");
 
 	return 0;
@@ -680,7 +680,7 @@ int gl_capture_get_video_stream(gl_capture_t gl_capture,
 
 		fvideo->dpy          = dpy;
 		fvideo->drawable     = drawable;
-		fvideo->gather_stats = glc_log_get_level(gl_capture->glc) >= GLC_PERFORMANCE;
+		fvideo->gather_stats = glc_log_get_level(gl_capture->glc) >= GLC_PERF;
 		ps_packet_init(&fvideo->packet, gl_capture->to);
 
 		glc_state_video_new(gl_capture->glc, &fvideo->id, &fvideo->state_video);
@@ -727,7 +727,7 @@ int gl_capture_write_video_format_message(gl_capture_t gl_capture,
 
 	gl_capture_calc_geometry(gl_capture, video, w, h);
 
-	glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+	glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 		 "creating/updating configuration for video %d", video->id);
 
 	msg.type = GLC_MESSAGE_VIDEO_FORMAT;
@@ -931,7 +931,7 @@ finish:
 cancel:
 	if (ret == EBUSY) {
 		ret = 0;
-		glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 			 "dropped frame, buffer not ready");
 	}
 	ps_packet_cancel(&video->packet);
@@ -945,7 +945,7 @@ int gl_capture_refresh_color_correction(gl_capture_t gl_capture)
 	if (unlikely(!(gl_capture->flags & GL_CAPTURE_CAPTURING)))
 		return 0; /* capturing not active */
 
-	glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+	glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 		 "refreshing color correction");
 
 	pthread_rwlock_rdlock(&gl_capture->videolist_lock);
@@ -983,7 +983,7 @@ int gl_capture_update_color(gl_capture_t gl_capture, struct gl_capture_video_str
 	/** \todo figure out brightness and contrast */
 	msg.brightness = msg.contrast = 0;
 
-	glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+	glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 		 "color correction: brightness=%f, contrast=%f, red=%f, green=%f, blue=%f",
 		 msg.brightness, msg.contrast, msg.red, msg.green, msg.blue);
 
@@ -1015,7 +1015,7 @@ int gl_capture_set_attribute_window(gl_capture_t gl_capture, Display *dpy,
 	struct gl_capture_video_stream_s *video;
 	gl_capture_get_video_stream(gl_capture, &video, dpy, drawable);
 
-	glc_log(gl_capture->glc, GLC_INFORMATION, "gl_capture",
+	glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 		"setting attribute window %p for drawable %p", (void *) window, (void *) drawable);
 	video->attribWin = window;
 	return 0;

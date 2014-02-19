@@ -137,7 +137,7 @@ int pack_set_compression(pack_t pack, int compression)
 	if (compression == PACK_QUICKLZ) {
 #ifdef __QUICKLZ
 		pack->thread.write_callback = &pack_quicklz_write_callback;
-		glc_log(pack->glc, GLC_INFORMATION, "pack",
+		glc_log(pack->glc, GLC_INFO, "pack",
 			 "compressing using QuickLZ");
 #else
 		glc_log(pack->glc, GLC_ERROR, "pack",
@@ -147,7 +147,7 @@ int pack_set_compression(pack_t pack, int compression)
 	} else if (compression == PACK_LZO) {
 #ifdef __LZO
 		pack->thread.write_callback = &pack_lzo_write_callback;
-		glc_log(pack->glc, GLC_INFORMATION, "pack",
+		glc_log(pack->glc, GLC_INFO, "pack",
 			 "compressing using LZO");
 		lzo_init();
 #else
@@ -158,7 +158,7 @@ int pack_set_compression(pack_t pack, int compression)
 	} else if (compression == PACK_LZJB) {
 #ifdef __LZJB
 		pack->thread.write_callback = &pack_lzjb_write_callback;
-		glc_log(pack->glc, GLC_INFORMATION, "pack",
+		glc_log(pack->glc, GLC_INFO, "pack",
 			"compressing using LZJB");
 #else
 		glc_log(pack->glc, GLC_ERROR, "pack",
@@ -549,7 +549,7 @@ void print_stats(glc_t *glc, pack_stat_t *stat)
 	else
 		ratio = (double)stat->pack_size/(double)stat->unpack_size;
 
-	glc_log(glc, GLC_PERFORMANCE, "pack",
+	glc_log(glc, GLC_PERF, "pack",
 		"unpack_size: %llu pack_size: %llu %remn: %.1f",
 		stat->unpack_size, stat->pack_size, ratio*100);
 }

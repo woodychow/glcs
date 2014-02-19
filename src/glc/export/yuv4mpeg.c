@@ -199,13 +199,13 @@ int yuv4mpeg_handle_hdr(yuv4mpeg_t yuv4mpeg, glc_video_format_message_t *video_f
 
 	if (yuv4mpeg->to) {
 		fclose(yuv4mpeg->to);
-		glc_log(yuv4mpeg->glc, GLC_WARNING, "yuv4mpeg",
+		glc_log(yuv4mpeg->glc, GLC_WARN, "yuv4mpeg",
 			"video stream configuration changed");
 	}
 
 	filename = (char *) malloc(1024);
 	snprintf(filename, 1023, yuv4mpeg->filename_format, ++yuv4mpeg->file_count);
-	glc_log(yuv4mpeg->glc, GLC_INFORMATION, "yuv4mpeg", "opening %s for writing", filename);
+	glc_log(yuv4mpeg->glc, GLC_INFO, "yuv4mpeg", "opening %s for writing", filename);
 
 	yuv4mpeg->to = fopen(filename, "w");
 	if (unlikely(!yuv4mpeg->to)) {

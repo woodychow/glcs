@@ -163,10 +163,10 @@ int alsa_hook_start(alsa_hook_t alsa_hook)
 		alsa_hook_init_streams(alsa_hook);
 
 	if (alsa_hook->flags & ALSA_HOOK_CAPTURING)
-		glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
+		glc_log(alsa_hook->glc, GLC_WARN, "alsa_hook",
 			 "capturing is already active");
 	else
-		glc_log(alsa_hook->glc, GLC_INFORMATION, "alsa_hook",
+		glc_log(alsa_hook->glc, GLC_INFO, "alsa_hook",
 			 "starting capturing");
 
 	alsa_hook->flags |= ALSA_HOOK_CAPTURING;
@@ -176,10 +176,10 @@ int alsa_hook_start(alsa_hook_t alsa_hook)
 int alsa_hook_stop(alsa_hook_t alsa_hook)
 {
 	if (alsa_hook->flags & ALSA_HOOK_CAPTURING)
-		glc_log(alsa_hook->glc, GLC_INFORMATION, "alsa_hook",
+		glc_log(alsa_hook->glc, GLC_INFO, "alsa_hook",
 			 "stopping capturing");
 	else
-		glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
+		glc_log(alsa_hook->glc, GLC_WARN, "alsa_hook",
 			 "capturing is already stopped");
 
 	alsa_hook->flags &= ~ALSA_HOOK_CAPTURING;
@@ -453,7 +453,7 @@ int alsa_hook_open(alsa_hook_t alsa_hook, snd_pcm_t *pcm, const char *name,
 
 	stream->mode = mode;
 
-	glc_log(alsa_hook->glc, GLC_INFORMATION, "alsa_hook",
+	glc_log(alsa_hook->glc, GLC_INFO, "alsa_hook",
 		 "%p: opened device \"%s\" with mode is 0x%02x (async=%s, nonblock=%s)",
 		 stream->pcm, name, mode,
 		 mode & SND_PCM_ASYNC ? "yes" : "no",
@@ -467,7 +467,7 @@ int alsa_hook_close(alsa_hook_t alsa_hook, snd_pcm_t *pcm)
 	struct alsa_hook_stream_s *stream;
 
 	alsa_hook_get_stream(alsa_hook, pcm, &stream);
-	glc_log(alsa_hook->glc, GLC_INFORMATION, "alsa_hook", "%p: closing stream %d",
+	glc_log(alsa_hook->glc, GLC_INFO, "alsa_hook", "%p: closing stream %d",
 		 pcm, stream->id);
 	stream->fmt = 0; /* no format -> do not initialize */
 
@@ -626,14 +626,14 @@ int alsa_hook_mmap_commit(alsa_hook_t alsa_hook, snd_pcm_t *pcm,
 	if (unlikely(!stream->mmap_areas)) {
 		/* this might actually happen */
 		if (!(stream->mode & SND_PCM_ASYNC))
-			glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
+			glc_log(alsa_hook->glc, GLC_WARN, "alsa_hook",
 				 "snd_pcm_mmap_commit() before snd_pcm_mmap_begin()");
 		goto unlock;
 	}
 
 	if (unlikely(offset != stream->offset))
 		if (!(stream->mode & SND_PCM_ASYNC))
-			glc_log(alsa_hook->glc, GLC_WARNING, "alsa_hook",
+			glc_log(alsa_hook->glc, GLC_WARN, "alsa_hook",
 				 "offset=%lu != stream->offset=%lu", offset, stream->offset);
 
 	if (unlikely((ret = alsa_hook_wait_for_thread(alsa_hook, stream))))
@@ -784,7 +784,7 @@ int alsa_hook_stream_init(alsa_hook_t alsa_hook,
 		glc_state_audio_new(alsa_hook->glc, &stream->id,
 					&stream->state_audio);
 
-	glc_log(alsa_hook->glc, GLC_INFORMATION, "alsa_hook",
+	glc_log(alsa_hook->glc, GLC_INFO, "alsa_hook",
 		 "%p: initializing stream %d", stream->pcm, stream->id);
 
 	/* init packet */

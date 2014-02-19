@@ -70,6 +70,7 @@ struct main_private_s {
 	pack_t pack;
 
 	unsigned int capture;
+	const char *pipe_exec_file;
 	const char *stream_file_fmt;
 	char *stream_file;
 
@@ -135,7 +136,7 @@ void init_glc()
 
 	/** \todo hook sigaction() ? */
 	if (mpriv.sighandler) {
-		glc_log(&mpriv.glc, GLC_INFORMATION, "main",
+		glc_log(&mpriv.glc, GLC_INFO, "main",
 			 "setting signal handler");
 
 		new_sighandler.sa_handler = signal_handler;
@@ -152,7 +153,7 @@ void init_glc()
 		mpriv.sigterm_handler = old_sighandler.sa_handler;
 	}
 
-	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "glc initialized");
+	glc_log(&mpriv.glc, GLC_INFO, "main", "glc initialized");
 	env_val = getenv("LD_PRELOAD");
 	if (unlikely(!env_val))
 		env_val = "(null)";
@@ -207,7 +208,16 @@ int load_environ()
 	if ((env_val = getenv("GLC_COMPRESSED_BUFFER_SIZE")))
 		mpriv.compressed_size = atoi(env_val) * 1024 * 1024;
 
-	if ((env_val = getenv("GLC_COMPRESS"))) {
+	if ((env_val = getenv("GLC_PIPE"))) {
+		if (likely(!access(env_val,X_OK)))
+			mpriv.pipe_exec_file = env_val;
+		else
+			glc_log(&mpriv.glc, GLC_ERROR, "main",
+				"cannot exexute '%s': %s (%d) - will fall back to file sink",
+				env_val, strerror(errno), errno);
+	}
+
+	if (!mpriv.pipe_exec_file && (env_val = getenv("GLC_COMPRESS"))) {
 		if (!strcmp(env_val, "lzo"))
 			mpriv.flags |= MAIN_COMPRESS_LZO;
 		else if (!strcmp(env_val, "quicklz"))
@@ -235,7 +245,7 @@ int init_buffers()
 	ps_bufferattr_t attr;
 	ps_bufferattr_init(&attr);
 
-	if (glc_log_get_level(&mpriv.glc) >= GLC_PERFORMANCE)
+	if (glc_log_get_level(&mpriv.glc) >= GLC_PERF)
 		ps_bufferattr_setflags(&attr, PS_BUFFER_STATS);
 
 	ps_bufferattr_setsize(&attr, mpriv.uncompressed_size);
@@ -301,7 +311,7 @@ void reload_stream_callback(void *arg)
 	/* this is called when callback request arrives to file object */
 	int ret;
 
-	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "reloading stream");
+	glc_log(&mpriv.glc, GLC_INFO, "main", "reloading stream");
 
 	if (unlikely((ret = mpriv.sink->ops->write_eof(mpriv.sink))))
 		goto err;
@@ -353,7 +363,7 @@ int start_capture()
 		goto err;
 
 	lib.flags |= LIB_CAPTURING;
-	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "started capturing");
+	glc_log(&mpriv.glc, GLC_INFO, "main", "started capturing");
 
 	return 0;
 err:
@@ -376,7 +386,7 @@ int stop_capture()
 
 	lib.flags &= ~LIB_CAPTURING;
 	mpriv.stop_time = glc_state_time(&mpriv.glc);
-	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "stopped capturing");
+	glc_log(&mpriv.glc, GLC_INFO, "main", "stopped capturing");
 
 	return 0;
 err:
@@ -392,7 +402,7 @@ int start_glc()
 	if (lib.running)
 		return EINVAL;
 
-	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "starting glc");
+	glc_log(&mpriv.glc, GLC_INFO, "main", "starting glc");
 
 	glc_compute_threads_hint(&mpriv.glc);
 
@@ -425,7 +435,7 @@ int start_glc()
 						       mpriv.compressed))))
 			return ret;
 	} else {
-		glc_log(&mpriv.glc, GLC_WARNING, "main", "compression disabled");
+		glc_log(&mpriv.glc, GLC_WARN, "main", "compression disabled");
 		if (unlikely((ret = mpriv.sink->ops->write_process_start(mpriv.sink,
 								mpriv.uncompressed))))
 			return ret;
@@ -437,7 +447,7 @@ int start_glc()
 		return ret;
 
 	lib.running = 1;
-	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "glc running");
+	glc_log(&mpriv.glc, GLC_INFO, "main", "glc running");
 
 	return 0;
 }
@@ -488,7 +498,7 @@ void lib_close()
 	 properly disposed.
 	*/
 
-	glc_log(&mpriv.glc, GLC_INFORMATION, "main", "closing glc");
+	glc_log(&mpriv.glc, GLC_INFO, "main", "closing glc");
 
 	if (unlikely((ret = alsa_close())))
 		goto err;
@@ -513,7 +523,7 @@ void lib_close()
 
 	if (mpriv.compressed) {
 		if(!ps_buffer_stats(mpriv.compressed, &stats)) {
-			glc_log(&mpriv.glc, GLC_PERFORMANCE, "main", "compressed buffer stats:");
+			glc_log(&mpriv.glc, GLC_PERF, "main", "compressed buffer stats:");
 			ps_stats_text(&stats, glc_log_get_stream(&mpriv.glc));
 		}
 		ps_buffer_destroy(mpriv.compressed);
@@ -521,7 +531,7 @@ void lib_close()
 	}
 
 	if(!ps_buffer_stats(mpriv.uncompressed, &stats)) {
-		glc_log(&mpriv.glc, GLC_PERFORMANCE, "main", "uncompressed buffer stats:");
+		glc_log(&mpriv.glc, GLC_PERF, "main", "uncompressed buffer stats:");
 		ps_stats_text(&stats, glc_log_get_stream(&mpriv.glc));
 	}
 	ps_buffer_destroy(mpriv.uncompressed);

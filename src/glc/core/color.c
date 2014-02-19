@@ -305,9 +305,9 @@ int color_video_format_msg(color_t color, glc_video_format_message_t *msg)
 		video->green_gamma = color->green_gamma;
 		video->blue_gamma = color->blue_gamma;
 
-		glc_log(color->glc, GLC_INFORMATION, "color",
+		glc_log(color->glc, GLC_INFO, "color",
 			 "using global color correction for video %d", msg->id);
-		glc_log(color->glc, GLC_INFORMATION, "color",
+		glc_log(color->glc, GLC_INFO, "color",
 			 "video stream %d: brightness=%f, contrast=%f, red=%f, green=%f, blue=%f",
 			 msg->id, video->brightness, video->contrast,
 			 video->red_gamma, video->green_gamma, video->blue_gamma);
@@ -317,7 +317,7 @@ int color_video_format_msg(color_t color, glc_video_format_message_t *msg)
 		    (video->red_gamma == 1) &&
 		    (video->green_gamma == 1) &&
 		    (video->blue_gamma == 1)) {
-			glc_log(color->glc, GLC_INFORMATION, "color",
+			glc_log(color->glc, GLC_INFO, "color",
 				"skipping color correction");
 			video->proc = NULL;
 		} else if (video->format == GLC_VIDEO_YCBCR_420JPEG) {
@@ -329,21 +329,21 @@ int color_video_format_msg(color_t color, glc_video_format_message_t *msg)
 			video->proc = &color_bgr;
 		} else {
 			/* set proc NULL -> no conversion done */
-			glc_log(color->glc, GLC_WARNING, "color",
+			glc_log(color->glc, GLC_WARN, "color",
 				"unsupported video %d", msg->id);
 			video->proc = NULL;
 		}
 	} else if (((old_format == GLC_VIDEO_BGR) ||
 		    (old_format == GLC_VIDEO_BGRA)) &&
 		   (msg->format == GLC_VIDEO_YCBCR_420JPEG)) {
-		glc_log(color->glc, GLC_WARNING, "color",
+		glc_log(color->glc, GLC_WARN, "color",
 			 "colorspace switched from RGB to Y'CbCr, recalculating lookup table");
 		color_generate_ycbcr_lookup_table(color, video);
 		video->proc = &color_ycbcr;
 	} else if (((msg->format == GLC_VIDEO_BGR) ||
 		    (msg->format == GLC_VIDEO_BGRA)) &&
 		   (old_format == GLC_VIDEO_YCBCR_420JPEG)) {
-		glc_log(color->glc, GLC_WARNING, "color",
+		glc_log(color->glc, GLC_WARN, "color",
 			 "colorspace switched from Y'CbCr to RGB, recalculating lookup table");
 		color_generate_rgb_lookup_table(color, video);
 		video->proc = &color_bgr;
@@ -369,7 +369,7 @@ int color_color_msg(color_t color, glc_color_message_t *msg)
 	video->green_gamma = msg->green;
 	video->blue_gamma = msg->blue;
 
-	glc_log(color->glc, GLC_INFORMATION, "color",
+	glc_log(color->glc, GLC_INFO, "color",
 		 "video stream %d: brightness=%f, contrast=%f, red=%f, green=%f, blue=%f",
 		 msg->id, video->brightness, video->contrast,
 		 video->red_gamma, video->green_gamma, video->blue_gamma);
@@ -379,7 +379,7 @@ int color_color_msg(color_t color, glc_color_message_t *msg)
 	    (video->red_gamma == 1) &&
 	    (video->green_gamma == 1) &&
 	    (video->blue_gamma == 1)) {
-		glc_log(color->glc, GLC_INFORMATION, "color", "skipping color correction");
+		glc_log(color->glc, GLC_INFO, "color", "skipping color correction");
 		video->proc = NULL;
 	} else if (video->format == GLC_VIDEO_YCBCR_420JPEG) {
 		color_generate_ycbcr_lookup_table(color, video);
@@ -490,7 +490,7 @@ int color_generate_ycbcr_lookup_table(color_t color,
 	unsigned char R, G, B;
 	size_t lookup_size = (1 << LOOKUP_BITS) * (1 << LOOKUP_BITS) * (1 << LOOKUP_BITS) * 3;
 
-	glc_log(color->glc, GLC_INFORMATION, "color",
+	glc_log(color->glc, GLC_INFO, "color",
 		 "using %d bit lookup table (%zd bytes)", LOOKUP_BITS, lookup_size);
 	video->lookup_table = malloc(lookup_size);
 

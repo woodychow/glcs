@@ -153,7 +153,7 @@ int alsa_parse_capture_cfg(glc_t *glc, const char *cfg)
 		stream->next = alsa.capture_stream;
 		alsa.capture_stream = stream;
 
-		glc_log(glc, GLC_INFORMATION, "alsa",
+		glc_log(glc, GLC_INFO, "alsa",
 			"capturing device %s with %u channels at %u",
 			stream->device, stream->channels, stream->rate);
 
@@ -518,7 +518,7 @@ snd_pcm_sframes_t __alsa_snd_pcm_mmap_commit(snd_pcm_t *pcm, snd_pcm_uframes_t o
 
 	ret = alsa.api.snd_pcm_mmap_commit(pcm, offset, frames);
 	if (ret != frames)
-		glc_log(alsa.glc, GLC_WARNING, "alsa", "frames=%lu, ret=%ld", frames, ret);
+		glc_log(alsa.glc, GLC_WARN, "alsa", "frames=%lu, ret=%ld", frames, ret);
 	return ret;
 }
 

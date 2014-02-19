@@ -138,11 +138,11 @@ typedef struct {
 /** error */
 #define GLC_ERROR                         0
 /** warning */
-#define GLC_WARNING                       1
+#define GLC_WARN                          1
 /** performance information */
-#define GLC_PERFORMANCE                   2
+#define GLC_PERF                          2
 /** information */
-#define GLC_INFORMATION                   3
+#define GLC_INFO                          3
 /** debug */
 #define GLC_DEBUG                         4
 

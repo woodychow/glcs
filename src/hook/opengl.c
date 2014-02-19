@@ -109,7 +109,7 @@ int opengl_init(glc_t *glc)
 		else if (!strcmp(env_val, "bgr"))
 			opengl.convert_ycbcr_420jpeg = 0;
 		else
-			glc_log(opengl.glc, GLC_WARNING, "opengl",
+			glc_log(opengl.glc, GLC_WARN, "opengl",
 				 "unknown colorspace '%s'", env_val);
 	} else
 		opengl.convert_ycbcr_420jpeg = 1;
@@ -125,7 +125,7 @@ int opengl_init(glc_t *glc)
 		else if (!strcmp(env_val, "back"))
 			opengl.read_buffer = GL_BACK;
 		else
-			glc_log(opengl.glc, GLC_WARNING, "opengl",
+			glc_log(opengl.glc, GLC_WARN, "opengl",
 				 "unknown capture buffer '%s'", env_val);
 	}
 	gl_capture_set_read_buffer(opengl.gl_capture, opengl.read_buffer);
@@ -181,7 +181,7 @@ int opengl_start(ps_buffer_t *buffer)
 
 		ps_bufferattr_t attr;
 		ps_bufferattr_init(&attr);
-		if (glc_log_get_level(opengl.glc) >= GLC_PERFORMANCE)
+		if (glc_log_get_level(opengl.glc) >= GLC_PERF)
 			ps_bufferattr_setflags(&attr, PS_BUFFER_STATS);
 
 		ps_bufferattr_setsize(&attr, opengl.unscaled_size);
@@ -249,7 +249,7 @@ int opengl_close()
 
 	if (opengl.unscaled) {
 		if(!ps_buffer_stats(opengl.unscaled, &stats)) {
-			glc_log(opengl.glc, GLC_PERFORMANCE, "opengl", "unscale buffer stats:");
+			glc_log(opengl.glc, GLC_PERF, "opengl", "unscale buffer stats:");
 			ps_stats_text(&stats, glc_log_get_stream(opengl.glc));
 		}
 		ps_buffer_destroy(opengl.unscaled);
