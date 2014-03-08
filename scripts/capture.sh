@@ -5,10 +5,7 @@
 # For conditions of distribution and use, see copyright notice in glc.h
 
 # picture stream fps
-export GLC_FPS=30
-
-# out filename, %d => getpid()
-export GLC_FILE="pid-%d.glc"
+export GLC_FPS=15
 
 # scale pictures
 export GLC_SCALE=1.0
@@ -60,17 +57,30 @@ export GLC_LOCK_FPS=0
 # saved stream colorspace, bgr or 420jpeg
 # set 420jpeg to convert to Y'CbCr (420JPEG) at capture
 # NOTE this is a lossy operation
-export GLC_COLORSPACE=bgr
+export GLC_COLORSPACE=bgra
 
 # crop capture area to WxH+X+Y
 # export GLC_CROP=WxH+X+Y
 
 # record alsa devices
 # format is device#rate#channels;device2...
-export GLC_AUDIO_RECORD=hw:0,0#44100#2
+#export GLC_AUDIO_RECORD=hw:0,0#44100#2
 
 # Use SCHED_RR rt priority for ALSA threads
 export GLC_RTPRIO=1
+
+# pipe raw video stream to an external tool
+# 4 command line arguments are going to passed to the program:
+#  1. video_size (wxh)
+#  2. pixel_format (bgr24, bgra or rgb24)
+#  3. fps
+#  4. output filename
+export GLC_PIPE="./pipe_ffmpeg.sh"
+
+#
+# Flip vertically the images sent through the pipe
+#
+export GLC_PIPE_INVERT=1
 
 # use GL_PACK_ALIGNMENT 8
 #export GLC_CAPTURE_DWORD_ALIGNED=1
