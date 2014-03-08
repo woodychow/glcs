@@ -1,0 +1,12 @@
+[submodule "support"]
+	path = support
+	url = https://github.com/lano1106/glcs-support.git
+	branch = master
+[submodule "packetstream"]
+	path = packetstream
+	url = https://github.com/lano1106/glcs-packetstream.git
+	branch = master
+[submodule "elfhacks"]
+	path = elfhacks
+	url = https://github.com/nullkey/elfhacks.git
+	branch = stable
