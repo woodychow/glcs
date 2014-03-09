@@ -481,7 +481,7 @@ int gl_capture_calc_geometry(gl_capture_t gl_capture, struct gl_capture_video_st
 		 video->id, video->cw, video->ch, video->cx, video->cy);
 
 	video->row = video->cw * gl_capture->bpp;
-	if (video->row % gl_capture->pack_alignment != 0)
+	if (unlikely(video->row % gl_capture->pack_alignment != 0))
 		video->row += gl_capture->pack_alignment -
 			      video->row % gl_capture->pack_alignment;
 	return 0;

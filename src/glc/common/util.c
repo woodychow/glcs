@@ -27,15 +27,17 @@
  * \addtogroup util
  *  \{
  */
-
-#include <stdlib.h>
+#include <stdlib.h> // for atoi()
 #include <stdio.h>
+#include <stddef.h> // for offsetof()
+#include <alloca.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
 #include <time.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <dirent.h>
 
 #include "glc.h"
 #include "core.h"
@@ -75,7 +77,7 @@ int glc_util_init(glc_t *glc)
 {
 	glc->util = (glc_util_t) calloc(1, sizeof(struct glc_util_s));
 
-	glc->util->fps = 30;
+	glc->util->fps = 30.0;
 	glc->util->pid = getpid();
 
 	return 0;
@@ -321,6 +323,55 @@ int glc_util_set_nonblocking(int fd)
 	return glc_util_setflag(fd, O_NONBLOCK);
 }
 
+#define PMS_FILE "/proc/sys/fs/pipe-max-size"
+
+int glc_util_set_pipe_size(glc_t *glc, int fd, int size)
+{
+	int pipe_max_size;
+	int ret = 0;
+	int cursize;
+
+	if (unlikely(!size))
+		return EINVAL;
+
+	FILE *pms_file = fopen(PMS_FILE, "r");
+	if (unlikely(!pms_file)) {
+		glc_log(glc, GLC_ERROR, "util",
+			"failed to open '%s", PMS_FILE);
+		return 1;
+	}
+	if (unlikely(fscanf(pms_file,"%d", &pipe_max_size) != 1)) {
+		glc_log(glc, GLC_ERROR, "util", "error reading '%s'",
+			PMS_FILE);
+		goto nocheck;
+	}
+	if (unlikely(size > pipe_max_size))
+	{
+		glc_log(glc, GLC_WARN, "util",
+			"requested pipe buffer size of %d bytes "
+			"exceeding system maximum value of %d."
+			" Consider increase it by doing 'echo %d > %s'",
+			size, pipe_max_size, size, PMS_FILE);
+		size = pipe_max_size;
+	}
+nocheck:
+	if (unlikely((cursize = fcntl(fd, F_GETPIPE_SZ)) < 0)) {
+		glc_log(glc, GLC_WARN, "util",
+			"error getting the pipe buffer current size: %s (%d)",
+			strerror(errno), errno);
+		cursize = 0;
+	}
+	glc_log(glc, GLC_DEBUG, "util", "pipe buffer size: current %d requested %d",
+		cursize, size);
+	if (size > cursize)
+		if (unlikely((ret = fcntl(fd, F_SETPIPE_SZ, size)) < 0))
+			glc_log(glc, GLC_ERROR, "util",
+				"error setting the pipe buffer size: %s (%d)",
+				strerror(errno), errno);
+	fclose(pms_file);
+	return ret;
+}
+
 void glc_util_empty_pipe(int fd)
 {
 	char buf[256];
@@ -372,4 +423,76 @@ const char *glc_util_msgtype_to_str(glc_message_type_t type)
 	return res;
 }
 
+const char *glc_util_videofmt_to_str(glc_video_format_t fmt)
+{
+	const char *res;
+	switch(fmt)
+	{
+	case GLC_VIDEO_BGR:
+		res = "bgr24";
+		break;
+	case GLC_VIDEO_BGRA:
+		res = "bgra";
+		break;
+	case GLC_VIDEO_YCBCR_420JPEG:
+		res = "YV12_420";
+		break;
+	case GLC_VIDEO_RGB:
+		res = "rgb24";
+		break;
+	default:
+		res = "unknown";
+		break;
+	}
+	return res;
+}
+
+int glc_util_get_videofmt_bpp(glc_video_format_t fmt)
+{
+	int res;
+	switch(fmt)
+	{
+	case GLC_VIDEO_BGR:
+	case GLC_VIDEO_RGB:
+		res = 3;
+		break;
+	case GLC_VIDEO_BGRA:
+		res = 4;
+		break;
+	default:
+		res = -1;
+		break;
+	}
+	return res;
+}
+
+/*
+ * Implementation based on discussion held at:
+ *
+ * http://stackoverflow.com/questions/1676522/delete-files-while-reading-directory-with-readdir/
+ *
+ * Note: Knowing that /dev/fd dir only contains files whose name can only be integers, we can
+ *       take a shortcut to determine the name_max.
+ */
+void glc_util_close_fds(int start_fd)
+{
+	DIR *dirp     = opendir("/dev/fd");
+	long name_max = 15;
+	size_t len;
+	struct dirent *entryp, *result;
+	len = offsetof(struct dirent, d_name) + name_max + 1;
+	entryp = (struct dirent *)alloca(len);
+	while (!readdir_r(dirp, entryp, &result) && result) {
+		int fd;
+		if (unlikely(result->d_name[0] == '.'))
+			continue;
+		fd = atoi(result->d_name);
+		if (fd < start_fd || fd == dirfd(dirp))
+			continue;
+		close(fd);
+	}
+	closedir(dirp);
+}
+
 /**  \} */
+

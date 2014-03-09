@@ -103,6 +103,7 @@ static int file_write_state_callback(glc_message_header_t *header, void *message
 static int file_test_stream_version(u_int32_t version);
 static int file_set_target(struct file_private_s *mpriv, int fd);
 
+static int file_can_resume(sink_t sink);
 static int file_set_sync(sink_t sink, int sync);
 static int file_set_callback(sink_t sink, callback_request_func_t callback);
 static int file_open_target(sink_t sink, const char *filename);
@@ -124,6 +125,7 @@ static int file_read(source_t source, ps_buffer_t *to);
 static int file_source_destroy(source_t source);
 
 static sink_ops_t file_sink_ops = {
+	.can_resume          = file_can_resume,
 	.set_sync            = file_set_sync,
 	.set_callback        = file_set_callback,
 	.open_target         = file_open_target,
@@ -170,6 +172,11 @@ int file_sink_destroy(sink_t sink)
 	tracker_destroy(file->state_tracker);
 	free(file);
 	return 0;
+}
+
+int file_can_resume(sink_t sink)
+{
+	return 1;
 }
 
 int file_source_init(source_t *source, glc_t *glc)
@@ -313,7 +320,7 @@ int file_close_target(sink_t sink)
 			 strerror(errno), errno);
 
 	file->mpriv.handle = NULL;
-	file->mpriv.flags &= ~(FILE_RUNNING | FILE_WRITING | FILE_INFO_WRITTEN);
+	file->mpriv.flags &= ~(FILE_WRITING | FILE_INFO_WRITTEN);
 
 	return 0;
 }
@@ -348,18 +355,20 @@ err:
 	return errno;
 }
 
-int file_write_message(file_sink_t *file, glc_message_header_t *header, void *message,
-		       size_t message_size)
+int file_write_message(file_sink_t *file, glc_message_header_t *header,
+			void *message, size_t message_size)
 {
 	glc_size_t glc_size = (glc_size_t) message_size;
 
-	if (unlikely(fwrite_unlocked(&glc_size, sizeof(glc_size_t), 1, file->mpriv.handle) != 1))
+	if (unlikely(fwrite_unlocked(&glc_size, sizeof(glc_size_t),
+				1, file->mpriv.handle) != 1))
 		goto err;
-	if (unlikely(fwrite_unlocked(header, sizeof(glc_message_header_t), 1, file->mpriv.handle)
-		!= 1))
+	if (unlikely(fwrite_unlocked(header, sizeof(glc_message_header_t),
+				1, file->mpriv.handle) != 1))
 		goto err;
 	if (likely(message_size > 0))
-		if (unlikely(fwrite_unlocked(message, message_size, 1, file->mpriv.handle) != 1))
+		if (unlikely(fwrite_unlocked(message, message_size,
+				1, file->mpriv.handle) != 1))
 			goto err;
 
 	if (unlikely(file->sync))
@@ -393,7 +402,8 @@ err:
 	return ret;
 }
 
-int file_write_state_callback(glc_message_header_t *header, void *message, size_t message_size, void *arg)
+int file_write_state_callback(glc_message_header_t *header, void *message,
+				size_t message_size, void *arg)
 {
 	file_sink_t *file = arg;
 	return file_write_message(file, header, message, message_size);
@@ -433,7 +443,8 @@ int file_write_process_start(sink_t sink, ps_buffer_t *from)
 		     !(file->mpriv.flags & FILE_INFO_WRITTEN)))
 		return EAGAIN;
 
-	if (unlikely((ret = glc_thread_create(file->mpriv.glc, &file->thread, from, NULL))))
+	if (unlikely((ret = glc_thread_create(file->mpriv.glc, &file->thread,
+					from, NULL))))
 		return ret;
 	/** \todo cancel buffer if this fails? */
 	file->mpriv.flags |= FILE_RUNNING;
@@ -444,14 +455,14 @@ int file_write_process_start(sink_t sink, ps_buffer_t *from)
 int file_write_process_wait(sink_t sink)
 {
 	file_sink_t *file = (file_sink_t*)sink;
-	if (unlikely((!file->mpriv.handle) ||
-		(!(file->mpriv.flags & FILE_RUNNING)) ||
-		(!(file->mpriv.flags & FILE_WRITING)) ||
-		(!(file->mpriv.flags & FILE_INFO_WRITTEN))))
+	if (unlikely(!file->mpriv.handle ||
+		!(file->mpriv.flags & FILE_RUNNING) ||
+		!(file->mpriv.flags & FILE_WRITING) ||
+		!(file->mpriv.flags & FILE_INFO_WRITTEN)))
 		return EAGAIN;
 
 	glc_thread_wait(&file->thread);
-	file->mpriv.flags &= ~(FILE_RUNNING | FILE_INFO_WRITTEN);
+	file->mpriv.flags &= ~FILE_RUNNING;
 
 	return 0;
 }
@@ -461,7 +472,8 @@ void file_finish_callback(void *ptr, int err)
 	file_sink_t *file = (file_sink_t*) ptr;
 
 	if (unlikely(err))
-		glc_log(file->mpriv.glc, GLC_ERROR, "file", "%s (%d)", strerror(err), err);
+		glc_log(file->mpriv.glc, GLC_ERROR, "file", "%s (%d)",
+			strerror(err), err);
 }
 
 int file_read_callback(glc_thread_state_t *state)

@@ -28,12 +28,14 @@ SET(COMMON_HDR common/glc.h
 	       common/state.h
 	       common/thread.h
 	       common/util.h
+	       common/signal.h
 	       ${VERSION_HDR})
 SET(COMMON_SRC common/core.c
 	       common/log.c
 	       common/state.c
 	       common/thread.c
-	       common/util.c)
+	       common/util.c
+	       common/signal.c)
 
 SET(CORE_HDR core/color.h
 	     core/copy.h
@@ -43,7 +45,11 @@ SET(CORE_HDR core/color.h
 	     core/rgb.h
 	     core/scale.h
 	     core/tracker.h
-	     core/ycbcr.h)
+	     core/ycbcr.h
+	     core/pipe.h
+	     core/sink.h
+	     core/source.h
+	     core/frame_writers.h)
 SET(CORE_SRC core/color.c
 	     core/copy.c
 	     core/file.c
@@ -52,7 +58,9 @@ SET(CORE_SRC core/color.c
 	     core/rgb.c
 	     core/scale.c
 	     core/tracker.c
-	     core/ycbcr.c)
+	     core/ycbcr.c
+	     core/pipe.c
+	     core/frame_writers.c)
 
 SET(CAPTURE_HDR capture/alsa_capture.h
 		capture/alsa_hook.h

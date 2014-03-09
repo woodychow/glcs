@@ -127,7 +127,11 @@ __PUBLIC int glc_util_setflag( int fd, int flag );
 __PUBLIC int glc_util_clearflag( int fd, int flag );
 __PUBLIC int glc_util_set_nonblocking(int fd);
 __PUBLIC void glc_util_empty_pipe(int fd);
+__PUBLIC int glc_util_set_pipe_size(glc_t *glc, int fd, int size);
 __PUBLIC const char *glc_util_msgtype_to_str(glc_message_type_t type);
+__PUBLIC const char *glc_util_videofmt_to_str(glc_video_format_t fmt);
+__PUBLIC int glc_util_get_videofmt_bpp(glc_video_format_t fmt);
+__PUBLIC void glc_util_close_fds(int start_fd);
 
 #ifdef __cplusplus
 }

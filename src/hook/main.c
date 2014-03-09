@@ -47,9 +47,11 @@
 #include <glc/common/state.h>
 #include <glc/core/pack.h>
 #include <glc/core/file.h>
+#include <glc/core/pipe.h>
 
 #include "lib.h"
 
+#define MAIN_PIPE_VFLIP            0x1
 #define MAIN_COMPRESS_NONE         0x2
 #define MAIN_COMPRESS_QUICKLZ      0x4
 #define MAIN_COMPRESS_LZO          0x8
@@ -57,6 +59,9 @@
 #define MAIN_SYNC                 0x20
 #define MAIN_COMPRESS_LZJB        0x40
 #define MAIN_START                0x80
+
+#define SINK_CB_RELOAD_ARG         0x1
+#define SINK_CB_STOP_ARG           0x2
 
 struct main_private_s {
 	glc_t glc;
@@ -97,15 +102,12 @@ __PRIVATE void lib_close();
 __PRIVATE int  load_environ();
 __PRIVATE void signal_handler(int signum);
 __PRIVATE void get_real_libc_dlsym();
-__PRIVATE void reload_stream_callback(void *arg);
-__PRIVATE void increment_capture();
-__PRIVATE int open_stream();
-__PRIVATE int close_stream();
-__PRIVATE int reload_stream();
-__PRIVATE int is_stream_open()
-{
-	return mpriv.stream_file;
-}
+static void stream_sink_callback(void *arg);
+static int open_stream();
+static int close_stream();
+static int reload_stream();
+static int send_cb_request(int req_arg);
+static int start_capture_impl();
 
 void init_glc()
 {
@@ -138,7 +140,7 @@ void init_glc()
 	glc_util_log_info(&mpriv.glc);
 
 	if (mpriv.flags & MAIN_START)
-		start_capture();
+		start_capture_impl();
 
 	atexit(lib_close);
 
@@ -223,19 +225,29 @@ int load_environ()
 			glc_log(&mpriv.glc, GLC_ERROR, "main",
 				"cannot exexute '%s': %s (%d) - will fall back to file sink",
 				env_val, strerror(errno), errno);
+		if ((env_val = getenv("GLC_PIPE_INVERT"))) {
+			if (atoi(env_val))
+				mpriv.flags |= MAIN_PIPE_VFLIP;
+		}
 	}
 
-	if (!mpriv.pipe_exec_file && (env_val = getenv("GLC_COMPRESS"))) {
-		if (!strcmp(env_val, "lzo"))
+	/*
+	 * pipe sink sends only raw uncompressed data.
+	 */
+	if (!mpriv.pipe_exec_file) {
+		if ((env_val = getenv("GLC_COMPRESS"))) {
+			if (!strcmp(env_val, "lzo"))
+				mpriv.flags |= MAIN_COMPRESS_LZO;
+			else if (!strcmp(env_val, "quicklz"))
+				mpriv.flags |= MAIN_COMPRESS_QUICKLZ;
+			else if (!strcmp(env_val, "lzjb"))
+				mpriv.flags |= MAIN_COMPRESS_LZJB;
+			else
+				mpriv.flags |= MAIN_COMPRESS_NONE;
+		} else
 			mpriv.flags |= MAIN_COMPRESS_LZO;
-		else if (!strcmp(env_val, "quicklz"))
-			mpriv.flags |= MAIN_COMPRESS_QUICKLZ;
-		else if (!strcmp(env_val, "lzjb"))
-			mpriv.flags |= MAIN_COMPRESS_LZJB;
-		else
-			mpriv.flags |= MAIN_COMPRESS_NONE;
 	} else
-		mpriv.flags |= MAIN_COMPRESS_LZO;
+		 mpriv.flags |= MAIN_COMPRESS_NONE;
 
 	if ((env_val = getenv("GLC_RTPRIO")))
 		glc_set_allow_rt(&mpriv.glc, atoi(env_val));
@@ -280,19 +292,22 @@ int open_stream()
 	int ret;
 
 	glc_util_info_create(&mpriv.glc, &stream_info, &info_name, info_date);
-	mpriv.stream_file = glc_util_format_filename(mpriv.stream_file_fmt, mpriv.capture);
+	mpriv.stream_file = glc_util_format_filename(mpriv.stream_file_fmt,
+						mpriv.capture);
 
 	if (unlikely((ret = mpriv.sink->ops->set_sync(mpriv.sink,
 						(mpriv.flags & MAIN_SYNC) ? 1 : 0))))
 		goto at_exit;
-	if (unlikely((ret = mpriv.sink->ops->open_target(mpriv.sink, mpriv.stream_file))))
+	if (unlikely((ret = mpriv.sink->ops->open_target(mpriv.sink,
+							mpriv.stream_file))))
 		goto at_exit;
 	ret = mpriv.sink->ops->write_info(mpriv.sink, stream_info,
 				info_name, info_date);
 
 	/*
 	 * reset state time
-	 * This is done so for every saved file stream, the initial timestamp will be 0.
+	 * This is done so for every saved file stream, the initial timestamp
+	 * will be 0.
 	 */
 	glc_state_time_reset(&mpriv.glc);
 	mpriv.stop_time = 0;
@@ -306,62 +321,108 @@ at_exit:
 int close_stream()
 {
 	int ret;
-
+	/*
+	 * By closing the sink before freeing the target name makes it safe for
+	 * the sink to keep in ref the target name passed to open_target()
+	 */
+	ret = mpriv.sink->ops->close_target(mpriv.sink);
 	free(mpriv.stream_file);
 	mpriv.stream_file = NULL;
 
-	ret = mpriv.sink->ops->close_target(mpriv.sink);
 	return ret;
 }
 
-void reload_stream_callback(void *arg)
+void stream_sink_callback(void *arg)
 {
 	/* this is called when callback request arrives to file object */
 	int ret;
+	int req_arg = (int)arg;
 
-	glc_log(&mpriv.glc, GLC_INFO, "main", "reloading stream");
+	switch(req_arg)
+	{
+	case SINK_CB_RELOAD_ARG:
+		glc_log(&mpriv.glc, GLC_INFO, "main", "reloading stream");
 
-	if (unlikely((ret = mpriv.sink->ops->write_eof(mpriv.sink))))
-		goto err;
-	if (unlikely((ret = close_stream())))
-		goto err;
-	if (unlikely((ret = open_stream())))
-		goto err;
-	if (unlikely((ret = mpriv.sink->ops->write_state(mpriv.sink))))
-		goto err;
-
+		if (unlikely((ret = mpriv.sink->ops->write_eof(mpriv.sink))))
+			goto err;
+		if (unlikely((ret = close_stream())))
+			goto err;
+		if (unlikely((ret = open_stream())))
+			goto err;
+		if (unlikely((ret = mpriv.sink->ops->write_state(mpriv.sink))))
+			goto err;
+		break;
+	case SINK_CB_STOP_ARG:
+		glc_log(&mpriv.glc, GLC_INFO, "main", "stopping stream");
+		if (unlikely((ret = mpriv.sink->ops->write_eof(mpriv.sink))))
+			goto err;
+		break;
+	default:
+		glc_log(&mpriv.glc, GLC_ERROR, "main",
+			"unknown stream_sink_cb arg value: %d", req_arg);
+		break;
+	}
 	return;
 err:
 	glc_log(&mpriv.glc, GLC_ERROR, "main",
-		"can't reload stream: %s (%d)\n", strerror(ret), ret);
+		"error during stream sink cb (%d): %s (%d)\n",
+		req_arg, strerror(ret), ret);
 }
 
-int reload_stream()
+int send_cb_request(int req_arg)
 {
 	glc_message_header_t hdr;
 	hdr.type = GLC_CALLBACK_REQUEST;
 	glc_callback_request_t callback_req;
-	callback_req.arg = NULL;
+	callback_req.arg = (void*)req_arg;
 
 	/* synchronize with opengl top buffer */
-	return opengl_push_message(&hdr, &callback_req, sizeof(glc_callback_request_t));
+	return opengl_push_message(&hdr, &callback_req,
+				sizeof(glc_callback_request_t));
 }
 
-void increment_capture()
+inline int reload_stream()
+{
+	return send_cb_request(SINK_CB_RELOAD_ARG);
+}
+
+static inline int stop_stream()
+{
+	return send_cb_request(SINK_CB_STOP_ARG);
+}
+
+static inline int is_stream_open()
+{
+	return mpriv.stream_file != NULL;
+}
+
+static inline void increment_capture()
 {
 	mpriv.capture++;
 }
 
 int reload_capture()
 {
+	/*
+	 * The stream will not be open on the first capture
+	 * if initiated by reload.
+	 */
 	if (is_stream_open()) {
 		increment_capture();
 		reload_stream();
 	}
-	return start_capture();
+	return start_capture_impl();
 }
 
 int start_capture()
+{
+	if (mpriv.sink && !mpriv.sink->ops->can_resume(mpriv.sink))
+		reload_capture();
+	else
+		start_capture_impl();
+}
+
+int start_capture_impl()
 {
 	int ret;
 	if (unlikely(lib.flags & LIB_CAPTURING))
@@ -372,7 +433,8 @@ int start_capture()
 			goto err;
 	}
 
-	glc_state_time_add_diff(&mpriv.glc, glc_state_time(&mpriv.glc) - mpriv.stop_time);
+	glc_state_time_add_diff(&mpriv.glc,
+				glc_state_time(&mpriv.glc) - mpriv.stop_time);
 
 	if (unlikely((ret = alsa_capture_start_all())))
 		goto err;
@@ -401,6 +463,9 @@ int stop_capture()
 	if (unlikely((ret = opengl_capture_stop())))
 		goto err;
 
+	if (!mpriv.sink->ops->can_resume(mpriv.sink))
+		stop_stream();
+
 	lib.flags &= ~LIB_CAPTURING;
 	mpriv.stop_time = glc_state_time(&mpriv.glc);
 	glc_log(&mpriv.glc, GLC_INFO, "main", "stopped capturing");
@@ -423,12 +488,18 @@ int start_glc()
 
 	glc_compute_threads_hint(&mpriv.glc);
 
-	/* initialize file & write stream info */
-	if (unlikely((ret = file_sink_init(&mpriv.sink, &mpriv.glc))))
-		return ret;
-	/* NOTE at the moment only reload is used as callback */
+	/* initialize sink & write stream info */
+	if (mpriv.pipe_exec_file) {
+		if (unlikely((ret = pipe_sink_init(&mpriv.sink, &mpriv.glc,
+						mpriv.pipe_exec_file,
+						mpriv.flags & MAIN_PIPE_VFLIP))))
+			return ret;
+	} else {
+		if (unlikely((ret = file_sink_init(&mpriv.sink, &mpriv.glc))))
+			return ret;
+	}
 	if (unlikely((ret = mpriv.sink->ops->set_callback(mpriv.sink,
-							&reload_stream_callback))))
+							&stream_sink_callback))))
 		return ret;
 	if (unlikely((ret = open_stream())))
 		return ret;

@@ -37,6 +37,7 @@ typedef struct sink_s* sink_t;
 
 typedef struct
 {
+	int (*can_resume)(sink_t sink);
 	/**
 	 * \brief set sync mode
 	 * \note this must be set before opening sink

@@ -1,6 +1,6 @@
 /**
  * \file glc/core/source.h
- * \brief Abstract ssource interface
+ * \brief Abstract source interface
  * \author Olivier Langlois <olivier@trillion01.com>
  * \date 2014
 

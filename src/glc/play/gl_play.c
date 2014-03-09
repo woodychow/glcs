@@ -273,11 +273,13 @@ int gl_play_create_ctx(gl_play_t gl_play)
 
 	winattr.background_pixel = 0;
 	winattr.border_pixel = 0;
-	winattr.colormap = XCreateColormap(gl_play->dpy, RootWindow(gl_play->dpy, DefaultScreen(gl_play->dpy)),
+	winattr.colormap = XCreateColormap(gl_play->dpy, RootWindow(gl_play->dpy,
+							DefaultScreen(gl_play->dpy)),
 					   visinfo->visual, AllocNone);
 	winattr.event_mask = StructureNotifyMask | ExposureMask | KeyPressMask | KeyReleaseMask;
 	winattr.override_redirect = 0;
-	gl_play->win = XCreateWindow(gl_play->dpy, RootWindow(gl_play->dpy, DefaultScreen(gl_play->dpy)),
+	gl_play->win = XCreateWindow(gl_play->dpy, RootWindow(gl_play->dpy,
+					DefaultScreen(gl_play->dpy)),
 				     0, 0, gl_play->w, gl_play->h, 0, visinfo->depth, InputOutput,
 				     visinfo->visual, CWBackPixel | CWBorderPixel |
 				     CWColormap | CWEventMask | CWOverrideRedirect, &winattr);
@@ -597,10 +599,12 @@ int gl_handle_xevents(gl_play_t gl_play, glc_thread_state_t *state)
 			yf = (float) ce->height / (float) gl_play->h;
 
 			if (xf < yf)
-				gl_play_update_viewport(gl_play, 0, (ce->height - gl_play->h * xf) / 2,
+				gl_play_update_viewport(gl_play, 0,
+							(ce->height - gl_play->h * xf) / 2,
 							gl_play->w * xf, gl_play->h * xf);
 			else
-				gl_play_update_viewport(gl_play, (ce->width - gl_play->w * yf) / 2, 0,
+				gl_play_update_viewport(gl_play,
+							(ce->width - gl_play->w * yf) / 2, 0,
 							gl_play->w * yf, gl_play->h * yf);
 
 			break;
@@ -658,7 +662,7 @@ int gl_play_read_callback(glc_thread_state_t *state)
 	} else if (state->header.type == GLC_MESSAGE_VIDEO_FRAME) {
 		pic_hdr = (glc_video_frame_header_t *) state->read_data;
 
-		if (pic_hdr->id != gl_play->id)
+		if (unlikely(pic_hdr->id != gl_play->id))
 			return 0;
 
 		if (unlikely(!(gl_play->flags & GL_PLAY_INITIALIZED))) {

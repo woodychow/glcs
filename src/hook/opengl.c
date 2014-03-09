@@ -44,6 +44,10 @@
 
 #include "lib.h"
 
+#define CS_BGR 0
+#define CS_YCBCR_420JPEG 1
+#define CS_BGRA 2
+
 struct opengl_private_s {
 	glc_t *glc;
 
@@ -61,7 +65,7 @@ struct opengl_private_s {
 	GLXWindow (*glXCreateWindow)(Display *, GLXFBConfig, Window, const int *);
 
 	int capture_glfinish;
-	int convert_ycbcr_420jpeg;
+	int colorspace;
 	double scale_factor;
 	GLenum read_buffer;
 	double fps;
@@ -82,13 +86,13 @@ int opengl_init(glc_t *glc)
 	unsigned int x, y, w, h;
 	char *env_val;
 
-	opengl.glc = glc;
+	opengl.glc              = glc;
 	opengl.buffer = opengl.unscaled = NULL;
-	opengl.started = 0;
-	opengl.scale_factor = 1.0;
+	opengl.started          = 0;
+	opengl.scale_factor     = 1.0;
 	opengl.capture_glfinish = 0;
-	opengl.read_buffer = GL_FRONT;
-	opengl.capturing = 0;
+	opengl.read_buffer      = GL_FRONT;
+	opengl.capturing        = 0;
 
 	glc_log(opengl.glc, GLC_DEBUG, "opengl", "initializing");
 
@@ -97,7 +101,7 @@ int opengl_init(glc_t *glc)
 		return ret;
 
 	/* load environment variables */
-	opengl.fps = 30;
+	opengl.fps = 30.0;
 	if ((env_val = getenv("GLC_FPS")))
 		opengl.fps = atof(env_val);
 	glc_util_info_fps(opengl.glc, opengl.fps);
@@ -105,14 +109,16 @@ int opengl_init(glc_t *glc)
 
 	if ((env_val = getenv("GLC_COLORSPACE"))) {
 		if (!strcmp(env_val, "420jpeg"))
-			opengl.convert_ycbcr_420jpeg = 1;
+			opengl.colorspace = CS_YCBCR_420JPEG;
 		else if (!strcmp(env_val, "bgr"))
-			opengl.convert_ycbcr_420jpeg = 0;
+			opengl.colorspace = CS_BGR;
+		else if (!strcmp(env_val, "bgra"))
+			opengl.colorspace = CS_BGRA;
 		else
 			glc_log(opengl.glc, GLC_WARN, "opengl",
 				 "unknown colorspace '%s'", env_val);
 	} else
-		opengl.convert_ycbcr_420jpeg = 1;
+		opengl.colorspace = CS_YCBCR_420JPEG;
 
 	if ((env_val = getenv("GLC_UNSCALED_BUFFER_SIZE")))
 		opengl.unscaled_size = atoi(env_val) * 1024 * 1024;
@@ -163,7 +169,8 @@ int opengl_init(glc_t *glc)
 		gl_capture_lock_fps(opengl.gl_capture, atoi(env_val));
 
 	get_real_opengl();
-	glc_account_threads(opengl.glc, 1, (opengl.scale_factor != 1.0) || opengl.convert_ycbcr_420jpeg);
+	glc_account_threads(opengl.glc, 1, (opengl.scale_factor != 1.0) ||
+					   opengl.colorspace == CS_YCBCR_420JPEG);
 	return 0;
 }
 
@@ -175,7 +182,7 @@ int opengl_start(ps_buffer_t *buffer)
 	opengl.buffer = buffer;
 
 	/* init unscaled buffer if it is needed */
-	if ((opengl.scale_factor != 1.0) || opengl.convert_ycbcr_420jpeg) {
+	if ((opengl.scale_factor != 1.0) || opengl.colorspace == CS_YCBCR_420JPEG) {
 		/* if scaling is enabled, it is faster to capture as GL_BGRA */
 		gl_capture_set_pixel_format(opengl.gl_capture, GL_BGRA);
 
@@ -188,7 +195,7 @@ int opengl_start(ps_buffer_t *buffer)
 		opengl.unscaled = (ps_buffer_t *) malloc(sizeof(ps_buffer_t));
 		ps_buffer_init(opengl.unscaled, &attr);
 
-		if (opengl.convert_ycbcr_420jpeg) {
+		if (opengl.colorspace == CS_YCBCR_420JPEG) {
 			ycbcr_init(&opengl.ycbcr, opengl.glc);
 			ycbcr_set_scale(opengl.ycbcr, opengl.scale_factor);
 			ycbcr_process_start(opengl.ycbcr, opengl.unscaled, buffer);
@@ -200,7 +207,8 @@ int opengl_start(ps_buffer_t *buffer)
 
 		gl_capture_set_buffer(opengl.gl_capture, opengl.unscaled);
 	} else {
-		gl_capture_set_pixel_format(opengl.gl_capture, GL_BGR);
+		gl_capture_set_pixel_format(opengl.gl_capture,
+					    opengl.colorspace==CS_BGR?GL_BGR:GL_BGRA);
 		gl_capture_set_buffer(opengl.gl_capture, opengl.buffer);
 	}
 
@@ -223,15 +231,17 @@ int opengl_close()
 
 	if (opengl.unscaled) {
 		if (lib.running) {
-			if (unlikely((ret = glc_util_write_end_of_stream(opengl.glc, opengl.unscaled)))) {
+			if (unlikely((ret = glc_util_write_end_of_stream(opengl.glc,
+									 opengl.unscaled)))) {
 				glc_log(opengl.glc, GLC_ERROR, "opengl",
-					 "can't write end of stream: %s (%d)", strerror(ret), ret);
+					"can't write end of stream: %s (%d)",
+					strerror(ret), ret);
 				return ret;
 			}
 		} else
 			ps_buffer_cancel(opengl.unscaled);
 
-		if (opengl.convert_ycbcr_420jpeg) {
+		if (opengl.colorspace == CS_YCBCR_420JPEG) {
 			ycbcr_process_wait(opengl.ycbcr);
 			ycbcr_destroy(opengl.ycbcr);
 		} else {
@@ -241,7 +251,7 @@ int opengl_close()
 	} else if (lib.running) {
 		if (unlikely((ret = glc_util_write_end_of_stream(opengl.glc, opengl.buffer)))) {
 			glc_log(opengl.glc, GLC_ERROR, "opengl",
-				 "can't write end of stream: %s (%d)", strerror(ret), ret);
+				"can't write end of stream: %s (%d)", strerror(ret), ret);
 			return ret;
 		}
 	} else
@@ -419,7 +429,8 @@ GLXWindow __opengl_glXCreateWindow(Display *dpy, GLXFBConfig config, Window win,
 	start_glc(); /* gl_capture must be properly initialized */
 	GLXWindow retWin = opengl.glXCreateWindow(dpy, config, win, attrib_list);
 	if (retWin)
-		gl_capture_set_attribute_window(opengl.gl_capture, dpy, (GLXDrawable) retWin, win);
+		gl_capture_set_attribute_window(opengl.gl_capture, dpy,
+						(GLXDrawable) retWin, win);
 	return retWin;
 }
 
@@ -437,3 +448,4 @@ void opengl_capture_current()
 
 /**  \} */
 /**  \} */
+

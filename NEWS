@@ -1,0 +1,30 @@
+Version 0.6.0 - March 6, 2014
+
+- Add the option to send raw video stream to a pipe making it possible process the stream with external tools such as FFMPEG.
+- Fix buffer overflow causing heap corruption in src/hook/alsa.c
+- Change the delimiter from comma (,) to pound (#) for the alsa capture devices param.
+- branch prediction optimization
+- Replace several malloc+memset with calloc
+- Replace bitwise and/or operators with short-circuit logical operators.
+- Replace direct io syscalls with stdio
+- Use reentrant version of ctime() and localtime()
+- Replace a while loop with strstr() with a single strrchr() call.
+- Upgrade minilzo 2.02 to 2.06
+- Upgrade quicklz to 1.5.0
+- Replace custom init sync with standard pthread_once
+- Add performance logs
+- Increase timestamp precision to nanosecond.
+- Remove zombie alsa hook capture thread leak
+- make the alsa hook thread code async signal safe by blocking signals from the thread.
+- replace malloc with alloca for small temp ALSA params structs
+- replace signals to io poll for alsa_capture.
+- alsa_capture exclusively calls real alsa
+- fix alsa playback underrun and premature shutdown
+- Add rtpriority option for ALSA threads
+- remove several getenv() calls
+- forbids current frame ts to be in the futur
+- introduce sink and source abstract interface
+- shorten log level defines name
+- Improve how capture reload is performed
+- Creation of 2 frame writer classes
+

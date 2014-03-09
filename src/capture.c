@@ -70,6 +70,8 @@ int main(int argc, char *argv[])
 		{ 0 , "uncompressed",		"GLC_UNCOMPRESSED_BUFFER_SIZE",	NULL},
 		{ 0 , "unscaled",		"GLC_UNSCALED_BUFFER_SIZE",	NULL},
 		{'P', "rtprio",                 "GLC_RTPRIO",                   NULL},
+		{ 0 , "pipe",                   "GLC_PIPE",                     NULL},
+		{ 0 , "pipe_invert",            "GLC_PIPE_INVERT",               "1"},
 		{ 0 , NULL,			NULL,				NULL}
 	};
 
@@ -195,6 +197,13 @@ usage:
 	       "      --unscaled=SIZE        unscaled picture stream buffer size in MiB,\n"
 	       "                               default is 25 MiB\n"
 	       "  -P, --rtprio               use rt priority for alsa threads\n"
+	       "      --pipe=rhs_cmd         pipe the video stream to an ext. app (ie: ffmpeg)\n"
+	       "                               The external program will be invoked with 4 args:\n"
+	       "                                 1. video_size (wxh)\n"
+	       "                                 2. pixel_formats (bgr24,bgra or rgb24)\n"
+	       "                                 3. fps\n"
+	       "                                 4. output filename\n"
+	       "      --pipe_invert          vertically flip images sent to the pipe\n"
 	       "  -V, --version              print glc version and exit\n"
 	       "  -h, --help                 show this help\n");
 	return EXIT_FAILURE;
