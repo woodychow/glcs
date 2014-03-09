@@ -19,11 +19,6 @@ fi
 
 DESTDIR=$1
 
-if [ ! -d $DESTDIR ]; then
-	echo "$DESTDIR does not exist"
-	exit 1
-fi
-
 GLCSDIR=$PWD
 
 for mod in ${mods[@]}; do
