@@ -29,7 +29,7 @@ GLCSDIR=$PWD
 for mod in ${mods[@]}; do
 	echo "Installing $mod to $DESTDIR ..."
 	cd $GLCSDIR/$mod/build
-	make install || return 1
+	make install || exit 1
 done
 
 install -d -m755 $DESTDIR/share/glcs/scripts

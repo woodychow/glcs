@@ -40,8 +40,8 @@ for mod in ${mods[@]}; do
 		-DCMAKE_BUILD_TYPE:STRING="Release" \
 		-DCMAKE_C_FLAGS_RELEASE_RELEASE:STRING="${CFLAGS}" > /dev/null \
 		-DMLIBDIR="${MLIBDIR}" \
-		|| return 1
-	make || return 1
+		|| exit 1
+	make || exit 1
 	cd ../..
 done
 
