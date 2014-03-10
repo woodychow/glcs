@@ -7,19 +7,18 @@
 
 usage()
 {
-	echo "usage: $0 destdir"
+	echo "usage: $0 destdir [libdir]"
 	exit 1
 }
 
 mods=("elfhacks" "packetstream" "../glcs")
 
-if ! (( $# == 1 )); then
+if ! (( ($# == 1) || ($# == 2) )); then
 	usage
 fi
 
 DESTDIR=$1
-
-MLIBDIR="lib"
+MLIBDIR=${2:-"lib"}
 GLCSDIR=$PWD
 
 export CMAKE_INCLUDE_PATH="$GLCSDIR/elfhacks/src:$GLCSDIR/packetstream/src"
