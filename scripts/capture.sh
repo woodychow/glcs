@@ -5,7 +5,7 @@
 # For conditions of distribution and use, see copyright notice in glc.h
 
 # picture stream fps
-export GLC_FPS=15
+export GLC_FPS=30
 
 # scale pictures
 export GLC_SCALE=1.0
@@ -43,7 +43,7 @@ export GLC_AUDIO_SKIP=0
 
 # show indicator when capturing
 # NOTE this doesn't work properly when capturing front buffer
-export GLC_INDICATOR=1
+export GLC_INDICATOR=0
 
 # start capturing immediately
 export GLC_START=0
@@ -75,7 +75,7 @@ export GLC_RTPRIO=1
 #  2. pixel_format (bgr24, bgra or rgb24)
 #  3. fps
 #  4. output filename
-export GLC_PIPE="./pipe_ffmpeg.sh"
+export GLC_PIPE="/usr/share/glcs/scripts/pipe_ffmpeg.sh"
 
 #
 # Flip vertically the images sent through the pipe
@@ -91,10 +91,10 @@ export SDL_AUDIODRIVER=alsa
 # log verbosity
 export GLC_LOG=4
 
-export GLC_FILE="%app%-%pid%-%capture%.glc"
+export GLC_FILE="/home/lano1106/%app%-%pid%-%capture%.glc"
 
 # log file
-#export GLC_LOG_FILE="/dev/stderr"
+export GLC_LOG_FILE="/tmp/glcs.log"
 
 LD_PRELOAD=libglc-hook.so "${@}"
 
