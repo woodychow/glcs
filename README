@@ -23,6 +23,9 @@ of a video game session on youtube.
 One more thing. glcs is optimized for Linux by using Linux specific functions. This is totally
 non-portable and this is an assumed decision.
 
+Here is my first 1080P real-time capture on Youtube:
+http://youtu.be/EYYeIefOgq0
+
 glc-capture:
 ------------
 
