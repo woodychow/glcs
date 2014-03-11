@@ -828,7 +828,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	else
 		now = glc_state_time(gl_capture->glc);
 
-	/* has gl_capture->fps microseconds elapsed since last capture */
+	/* has gl_capture->fps nanoseconds elapsed since last capture */
 	if ((now - video->last < gl_capture->fps) &&
 	    !(gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
 	    !(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))
@@ -900,7 +900,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	now = glc_state_time(gl_capture->glc);
 
 	if (unlikely((gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
-	    !(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))) {
+		    !(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))) {
 		if (now - video->last < gl_capture->fps) {
 			struct timespec ts = { .tv_sec  = (gl_capture->fps + video->last - now)/1000000000,
 					       .tv_nsec = (gl_capture->fps + video->last - now)%1000000000 };
@@ -910,15 +910,6 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 
 	/* increment by 1/fps seconds */
 	video->last += gl_capture->fps;
-
-	/*
-	 We should accept framedrops (eg. not allow this difference
-	 to grow unlimited.
-	*/
-	if (likely(!(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))) {
-		if (now - video->last > gl_capture->fps) /* reasonable choice? */
-			video->last = now - 0.5 * gl_capture->fps;
-	}
 
 finish:
 	if (unlikely(ret != 0))
