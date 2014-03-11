@@ -183,8 +183,8 @@ pcm.split {
           bindings {
             0 { slave a channel 0 } # Left
             1 { slave a channel 1 } # Right
-            8 { slave b channel 0 } # left
-            9 { slave b channel 1 } # right
+            2 { slave b channel 0 } # left
+            3 { slave b channel 1 } # right
           }
        }
        rate 48000 # or whatever your application sampling rate is configured
