@@ -378,9 +378,6 @@ static int open_pipe(pipe_sink_t *pipe_sink, glc_video_format_message_t *format)
 		/* reset every signal dispositions to their default */
 		glcs_signal_reset();
 
-		/* We could be more careful and just remove libglc-hook.so */
-		unsetenv("LD_PRELOAD");
-
 		sigemptyset(&set);
 		sigprocmask(SIG_SETMASK, &set, NULL);
 

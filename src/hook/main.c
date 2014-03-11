@@ -168,6 +168,17 @@ void init_glc()
 	if (unlikely(!env_val))
 		env_val = "(null)";
 	glc_log(&mpriv.glc, GLC_DEBUG, "main", "LD_PRELOAD=%s", env_val);
+
+	/*
+	 * Unset LD_PRELOAD to avoid to have more than 1 app captured.
+	 * Otherwise spawned children would interfere when initialising
+	 * glcs such as resetting the log file.
+	 *
+	 * We could be more careful and just remove libglc-hook.so
+	 * if this variable is used for other things...
+	 */
+	unsetenv("LD_PRELOAD");
+
 	return;
 err:
 	fprintf(stderr, "(glc) %s (%d)\n", strerror(ret), ret);
