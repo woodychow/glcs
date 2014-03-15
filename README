@@ -334,10 +334,6 @@ read/write from/to the audio buffer has not been met and has caused what ALSA ca
 
 Setting the audio threads priority to Real-time like openal can do might help.
 
-Q: How to configure glcs to use rt prio for audio processing
-
-A:
-
 Q: What are the prerequisites in order to be able to set realtime priority?
 
 A:
