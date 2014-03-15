@@ -62,7 +62,6 @@ int main(int argc, char *argv[])
 		{'l', "log-file",		"GLC_LOG_FILE",			NULL},
 		{ 0 , "audio-skip",		"GLC_AUDIO_SKIP",		 "1"},
 		{ 0 , "disable-audio",		"GLC_AUDIO",			 "0"},
-		{ 0 , "sighandler",		"GLC_SIGHANDLER",		 "1"},
 		{'g', "glfinish",		"GLC_CAPTURE_GLFINISH",		 "1"},
 		{'j', "force-sdl-alsa-drv",	"SDL_AUDIODRIVER",	      "alsa"},
 		{'b', "capture",		"GLC_CAPTURE",			NULL},
@@ -185,7 +184,6 @@ usage:
 	       "      --audio-skip           skip audio packets if buffer is full\n"
 	       "                               or capture thread is busy\n"
 	       "      --disable-audio        don't capture audio\n"
-	       "      --sighandler           use custom signal handler\n"
 	       "  -g, --glfinish             capture at glFinish()\n"
 	       "  -j, --force-sdl-alsa-drv   force SDL to use ALSA audio driver\n"
 	       "  -b, --capture=BUFFER       capture 'front' or 'back' buffer\n"

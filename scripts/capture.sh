@@ -13,9 +13,6 @@ export GLC_SCALE=1.0
 # capture audio
 export GLC_AUDIO=0
 
-# install custom signal handler
-export GLC_SIGHANDLER=0
-
 # captured pictures and audio buffer size, in MiB
 export GLC_UNCOMPRESSED_BUFFER_SIZE=25
 

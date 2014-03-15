@@ -35,7 +35,6 @@
 #include <string.h>
 #include <elfhacks.h>
 #include <unistd.h>
-#include <signal.h>
 #include <fnmatch.h>
 #include <sched.h>
 #include <pthread.h>
@@ -79,11 +78,6 @@ struct main_private_s {
 	const char *stream_file_fmt;
 	char *stream_file;
 
-	int sighandler;
-	void (*sigint_handler)(int);
-	void (*sighup_handler)(int);
-	void (*sigterm_handler)(int);
-
 	glc_utime_t stop_time;
 };
 
@@ -100,7 +94,6 @@ __PRIVATE struct main_private_s mpriv;
 __PRIVATE int  init_buffers();
 __PRIVATE void lib_close();
 __PRIVATE int  load_environ();
-__PRIVATE void signal_handler(int signum);
 __PRIVATE void get_real_libc_dlsym();
 static void stream_sink_callback(void *arg);
 static int open_stream();
@@ -143,25 +136,6 @@ void init_glc()
 		start_capture_impl();
 
 	atexit(lib_close);
-
-	/** \todo hook sigaction() ? */
-	if (mpriv.sighandler) {
-		glc_log(&mpriv.glc, GLC_INFO, "main",
-			 "setting signal handler");
-
-		new_sighandler.sa_handler = signal_handler;
-		sigemptyset(&new_sighandler.sa_mask);
-		new_sighandler.sa_flags = 0;
-
-		sigaction(SIGINT, &new_sighandler, &old_sighandler);
-		mpriv.sigint_handler = old_sighandler.sa_handler;
-
-		sigaction(SIGHUP, &new_sighandler, &old_sighandler);
-		mpriv.sighup_handler = old_sighandler.sa_handler;
-
-		sigaction(SIGTERM, &new_sighandler, &old_sighandler);
-		mpriv.sigterm_handler = old_sighandler.sa_handler;
-	}
 
 	glc_log(&mpriv.glc, GLC_INFO, "main", "glc initialized");
 	env_val = getenv("LD_PRELOAD");
@@ -211,10 +185,6 @@ int load_environ()
 		free(log_file);
 		mpriv.flags |= MAIN_CUSTOM_LOG;
 	}
-
-	mpriv.sighandler = 0;
-	if ((env_val = getenv("GLC_SIGHANDLER")))
-		mpriv.sighandler = atoi(env_val);
 
 	if ((env_val = getenv("GLC_SYNC"))) {
 		if (atoi(env_val))
@@ -549,35 +519,6 @@ int start_glc()
 	glc_log(&mpriv.glc, GLC_INFO, "main", "glc running");
 
 	return 0;
-}
-
-void signal_handler(int signum)
-{
-	if ((signum == SIGINT) &&
-	    (mpriv.sigint_handler == SIG_IGN))
-		return;
-	else if ((signum == SIGHUP) &&
-	         (mpriv.sighup_handler == SIG_IGN))
-		return;
-	else if ((signum == SIGTERM) &&
-	         (mpriv.sigterm_handler == SIG_IGN))
-		return;
-
-	if ((signum == SIGINT) &&
-	    (mpriv.sigint_handler != SIG_DFL) &&
-	    (mpriv.sigint_handler != NULL))
-		mpriv.sigint_handler(signum);
-	else if ((signum == SIGHUP) &&
-	         (mpriv.sighup_handler != SIG_DFL) &&
-	         (mpriv.sighup_handler != NULL))
-		mpriv.sighup_handler(signum);
-	else if ((signum == SIGTERM) &&
-	         (mpriv.sigterm_handler != SIG_DFL) &&
-	         (mpriv.sigterm_handler != NULL))
-		mpriv.sigterm_handler(signum);
-
-	fprintf(stderr, "(glc) got C-c, will now exit...");
-	exit(0); /* may cause lots of damage... */
 }
 
 void lib_close()
