@@ -151,7 +151,7 @@ void glc_log_write_prefix(glc_t *glc, FILE *stream, int level, const char *modul
 			level_str = "error";
 			break;
 		case GLC_WARN:
-			level_str = "warning";
+			level_str = "warn";
 			break;
 		case GLC_PERF:
 			level_str = "perf";
