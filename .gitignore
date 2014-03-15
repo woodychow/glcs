@@ -1,0 +1,13 @@
+src/glc/common/version.h
+build/
+
+# CMake stuff
+CMakeFiles/
+CMakeCache.txt
+Makefile
+cmake_install.cmake
+
+# Binaries
+glc-capture
+glc-play
+libglc-*.so*
