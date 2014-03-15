@@ -1,27 +1,15 @@
-
 FIND_PACKAGE(ELFHACKS)
-
 IF (ELFHACKS_FOUND)
-  INCLUDE_DIRECTORIES(${ELFHACKS_INCLUDE_DIR})
+    # TODO: Try to build local copy of library if no system version is found.
+    INCLUDE_DIRECTORIES(${ELFHACKS_INCLUDE_DIR})
 ENDIF (ELFHACKS_FOUND)
 
-SET(HOOK_SRC lib.h
-	     main.c
-	     opengl.c
-	     alsa.c
-	     x11.c)
-
-ADD_LIBRARY(glc-hook SHARED ${HOOK_SRC})
-TARGET_LINK_LIBRARIES(glc-hook glc-core glc-capture ${ELFHACKS_LIBRARY} ${PACKETSTREAM_LIBRARY})
-SET_TARGET_PROPERTIES(glc-hook PROPERTIES
-		      OUTPUT_NAME glc-hook
-		      VERSION ${GLC_VER}
-		      SOVERSION ${GLC_SOVER})
+ADD_LIBRARY("glc-hook" SHARED "lib.h" "alsa.c" "main.c" "opengl.c" "x11.c")
+TARGET_LINK_LIBRARIES("glc-hook" "glc-core" "glc-capture"
+                      ${ELFHACKS_LIBRARY} ${PACKETSTREAM_LIBRARY})
+SET_TARGET_PROPERTIES("glc-hook" PROPERTIES OUTPUT_NAME "glc-hook"
+                      VERSION ${GLC_VER} SOVERSION ${GLC_SOVER})
 
 IF (UNIX)
-  IF (NOT MLIBDIR)
-    SET(MLIBDIR "lib")
-  ENDIF (NOT MLIBDIR)
-  INSTALL(TARGETS glc-hook
-  	  LIBRARY DESTINATION ${MLIBDIR})
+    INSTALL(TARGETS "glc-hook" LIBRARY DESTINATION ${LIBRARY_INSTALL_DIR})
 ENDIF (UNIX)

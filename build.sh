@@ -32,8 +32,8 @@ for mod in ${mods[@]}; do
 	cmake .. \
 		-DCMAKE_INSTALL_PREFIX:PATH="${DESTDIR}" \
 		-DCMAKE_BUILD_TYPE:STRING="Release" \
-		-DCMAKE_C_FLAGS_RELEASE:STRING="${CFLAGS}" > /dev/null \
-		-DMLIBDIR="${MLIBDIR}" \
+		-DCMAKE_C_FLAGS_RELEASE:STRING="${CFLAGS}" \
+		-DMLIBDIR:PATH=${MLIBDIR} \
 		|| exit 1
 	make || exit 1
 	cd ../..

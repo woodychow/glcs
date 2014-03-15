@@ -1,48 +1,45 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.4)
-
-PROJECT(glc)
+PROJECT("glc")
 
 SET(GLC_SOVER 0)
 SET(GLC_VER 0.6.0)
 
 IF (NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE "Release")
+    SET(CMAKE_BUILD_TYPE "Release")
 ENDIF (NOT CMAKE_BUILD_TYPE)
 
-OPTION(QUICKLZ
-       "QuickLZ support"
-       ON)
-OPTION(LZO
-       "LZO support"
-       ON)
-OPTION(LZJB
-       "LZJB support"
-       ON)
-OPTION(BINARIES
-       "Build and install glc-capture and glc-play"
-       ON)
-OPTION(HEADERS
-       "Install headers"
-       ON)
-OPTION(HOOK
-       "Build and install glc-hook"
-       ON)
-OPTION(SCRIPTS
-       "Install sample scripts."
-       OFF)
 
-IF (NOT GIT_DIR)
-  SET(GIT_DIR ${PROJECT_SOURCE_DIR}/.git)
-ENDIF (NOT GIT_DIR)
+# Define options.
+OPTION(QUICKLZ "QuickLZ support" ON)
+OPTION(LZO "LZO support" ON)
+OPTION(LZJB "LZJB support" ON)
+OPTION(BINARIES "Build and install glc-capture and glc-play" ON)
+OPTION(HOOK "Build and install glc-hook" ON)
+OPTION(SCRIPTS "Install sample scripts." ON)
 
-ADD_SUBDIRECTORY(src)
+
+# Define search and install paths.
+IF (NOT LIBRARY_INSTALL_DIR)
+    SET(LIBRARY_INSTALL_DIR "lib")
+    # Support the old "mlibdir" option too.
+    IF (MLIBDIR)
+        SET(LIBRARY_INSTALL_DIR ${MLIBDIR})
+    ENDIF (MLIBDIR)
+ENDIF (NOT LIBRARY_INSTALL_DIR)
+
+IF (NOT BINARY_INSTALL_DIR)
+    SET(BINARY_INSTALL_DIR "bin")
+ENDIF (NOT BINARY_INSTALL_DIR)
+
+IF (NOT SCRIPTS_INSTALL_DIR)
+    SET(SCRIPTS_INSTALL_DIR "share/glc")
+ENDIF (NOT SCRIPTS_INSTALL_DIR)
+
+
+# Add stuff to build.
+ADD_SUBDIRECTORY("src")
 
 IF (SCRIPTS)
-  IF (UNIX)
-    INSTALL(FILES scripts/capture.sh
-    		  scripts/encode.sh
-    		  scripts/play.sh
-    		  DESTINATION share/glc)
-  ENDIF (UNIX)
+    ADD_SUBDIRECTORY("scripts")
 ENDIF (SCRIPTS)
