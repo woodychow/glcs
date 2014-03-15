@@ -48,9 +48,9 @@
 #include <glc/common/log.h>
 #include <glc/common/state.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "gl_capture.h"
-#include "optimization.h"
 
 #define GL_CAPTURE_TRY_PBO          0x1
 #define GL_CAPTURE_USE_PBO          0x2

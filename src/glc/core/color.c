@@ -42,9 +42,9 @@
 #include <glc/common/log.h>
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "color.h"
-#include "optimization.h"
 
 #define LOOKUP_BITS 8
 #define YCBCR_LOOKUP_POS(Y, Cb, Cr) \

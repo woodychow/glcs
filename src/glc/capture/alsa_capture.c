@@ -43,9 +43,9 @@
 #include <glc/common/log.h>
 #include <glc/common/state.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "alsa_capture.h"
-#include "optimization.h"
 
 struct alsa_capture_s {
 	glc_t *glc;

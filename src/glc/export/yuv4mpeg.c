@@ -43,9 +43,9 @@
 #include <glc/common/log.h>
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "yuv4mpeg.h"
-#include "optimization.h"
 
 struct yuv4mpeg_s {
 	glc_t *glc;

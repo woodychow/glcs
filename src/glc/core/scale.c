@@ -41,9 +41,9 @@
 #include <glc/common/log.h>
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "scale.h"
-#include "optimization.h"
 
 #define SCALE_RUNNING      0x1
 #define SCALE_SIZE         0x2

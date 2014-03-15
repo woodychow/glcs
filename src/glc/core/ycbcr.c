@@ -41,9 +41,9 @@
 #include <glc/common/log.h>
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "ycbcr.h"
-#include "optimization.h"
 
 /*
 http://en.wikipedia.org/wiki/YCbCr:

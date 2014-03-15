@@ -29,8 +29,8 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/uio.h> // for writev
+#include <glc/common/optimization.h>
 #include "frame_writers.h"
-#include "optimization.h"
 
 typedef struct
 {

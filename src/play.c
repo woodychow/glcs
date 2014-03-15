@@ -35,6 +35,7 @@
 #include <glc/common/log.h>
 #include <glc/common/util.h>
 #include <glc/common/state.h>
+#include <glc/common/optimization.h>
 
 #include <glc/core/file.h>
 #include <glc/core/pack.h>
@@ -49,7 +50,6 @@
 #include <glc/export/yuv4mpeg.h>
 
 #include <glc/play/demux.h>
-#include "optimization.h"
 
 enum play_action {action_play, action_info, action_img, action_yuv4mpeg,
 		  action_wav, action_val};

@@ -46,10 +46,11 @@ ENDIF (LZJB)
 
 
 # This is where the library targets are defined.
-SET(COMMON_SRC "common/core.h" "common/glc.h" "common/log.h" "common/signal.h"
-    "common/state.h" "common/thread.h" "common/util.h" "common/version.h"
-    "common/core.c" "common/log.c" "common/signal.c" "common/state.c"
-    "common/thread.c" "common/util.c")
+SET(COMMON_SRC "common/core.h" "common/glc.h" "common/log.h"
+    "common/optimization.h" "common/signal.h" "common/state.h"
+    "common/thread.h" "common/util.h" "common/version.h" "common/core.c"
+    "common/log.c" "common/signal.c" "common/state.c" "common/thread.c"
+    "common/util.c")
 
 # GLC Core library.
 ADD_LIBRARY("glc-core" SHARED ${COMMON_SRC}

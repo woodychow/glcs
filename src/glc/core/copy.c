@@ -41,9 +41,9 @@
 #include <glc/common/log.h>
 #include <glc/common/state.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "copy.h"
-#include "optimization.h"
 
 struct copy_target_s {
 	ps_buffer_t *buffer;

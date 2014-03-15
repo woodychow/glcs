@@ -39,9 +39,9 @@
 #include <glc/common/log.h>
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "info.h"
-#include "optimization.h"
 
 #define INFO_DETAILED_VIDEO         2
 #define INFO_DETAILED_AUDIO_FORMAT  2

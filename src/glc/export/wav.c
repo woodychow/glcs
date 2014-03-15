@@ -41,9 +41,9 @@
 #include <glc/common/log.h>
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "wav.h"
-#include "optimization.h"
 
 struct wav_hdr {
 	u_int32_t id;

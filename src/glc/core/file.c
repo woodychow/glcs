@@ -53,11 +53,11 @@
 #include <glc/common/log.h>
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include <glc/core/tracker.h>
 
 #include "file.h"
-#include "optimization.h"
 
 #define FILE_READING       0x1
 #define FILE_WRITING       0x2
