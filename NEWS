@@ -1,3 +1,7 @@
+Version 0.6.1 -
+
+- Give more time to pipe process to terminate after having sent a SIGINT.
+
 Version 0.6.0 - March 6, 2014
 
 - Add the option to send raw video stream to a pipe making it possible process the stream with external tools such as FFMPEG.

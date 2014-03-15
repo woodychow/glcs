@@ -560,6 +560,7 @@ void close_pipe(glc_t *glc, struct pipe_runtime_s *rt)
 {
 	if (rt->w_pipefd >= 0) {
 		int ret, status;
+		struct timespec kill_wait_time;
 
 		/* closing the pipe should terminate the child */
 		epoll_ctl(rt->epollfd, EPOLL_CTL_DEL, rt->w_pipefd, NULL);
@@ -573,7 +574,15 @@ void close_pipe(glc_t *glc, struct pipe_runtime_s *rt)
 		glc_log(glc, GLC_DEBUG, "pipe", "sending SIGINT to child pid %d",
 			rt->consumer_proc);
 		kill(rt->consumer_proc, SIGINT);
-		ret = glcs_signal_timed_waitpid(glc, rt->consumer_proc, &status, &rt->wait_time);
+		kill_wait_time = rt->wait_time;
+
+		/*
+		 * very important to be patient here because by sending SIGKILL
+		 * there is a risk that some system resources do not get properly released
+		 * forcing a reboot to clean up this unfortunate state.
+		 */
+		kill_wait_time.tv_sec++;
+		ret = glcs_signal_timed_waitpid(glc, rt->consumer_proc, &status, &kill_wait_time);
 		if (!ret || errno == ECHILD)
 			goto child_gone;
 
