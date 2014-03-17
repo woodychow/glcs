@@ -73,12 +73,18 @@ struct main_private_s {
 	sink_t sink;
 	pack_t pack;
 
-	unsigned int capture;
+	unsigned int capture_id;
 	const char *pipe_exec_file;
 	const char *stream_file_fmt;
 	char *stream_file;
 
 	glc_utime_t stop_time;
+
+	/*
+	 * Synchronize capture start/stop that can be initiated from
+	 * the x11 thread or the sink thread.
+	 */
+	pthread_mutex_t capture_action_lock;
 };
 
 __PRIVATE glc_lib_t lib = {NULL, /* dlopen */
@@ -89,7 +95,9 @@ __PRIVATE glc_lib_t lib = {NULL, /* dlopen */
 			   PTHREAD_ONCE_INIT, /* init_once */
 			   0, /* flags */
 			   };
-__PRIVATE struct main_private_s mpriv;
+__PRIVATE struct main_private_s mpriv = {
+	.capture_action_lock = PTHREAD_MUTEX_INITIALIZER,
+};
 
 __PRIVATE int  init_buffers();
 __PRIVATE void lib_close();
@@ -104,12 +112,11 @@ static int start_capture_impl();
 
 void init_glc()
 {
-	struct sigaction new_sighandler, old_sighandler;
 	int ret;
 	char *env_val;
-	mpriv.flags     = 0;
-	mpriv.capture   = 0;
-	mpriv.stop_time = 0;
+	mpriv.flags       = 0;
+	mpriv.capture_id  = 0;
+	mpriv.stop_time   = 0;
 	mpriv.stream_file = NULL;
 	mpriv.stream_file_fmt = "%app%-%pid%-%capture%.glc";
 
@@ -274,7 +281,7 @@ int open_stream()
 
 	glc_util_info_create(&mpriv.glc, &stream_info, &info_name, info_date);
 	mpriv.stream_file = glc_util_format_filename(mpriv.stream_file_fmt,
-						mpriv.capture);
+						mpriv.capture_id);
 
 	if (unlikely((ret = mpriv.sink->ops->set_sync(mpriv.sink,
 						(mpriv.flags & MAIN_SYNC) ? 1 : 0))))
@@ -379,7 +386,7 @@ static inline int is_stream_open()
 
 static inline void increment_capture()
 {
-	mpriv.capture++;
+	mpriv.capture_id++;
 }
 
 int reload_capture()
@@ -406,8 +413,12 @@ int start_capture()
 int start_capture_impl()
 {
 	int ret;
-	if (unlikely(lib.flags & LIB_CAPTURING))
-		return EAGAIN;
+	if (unlikely(ret = pthread_mutex_lock(&mpriv.capture_action_lock)))
+		goto err_nolock;
+	if (unlikely(lib.flags & LIB_CAPTURING)) {
+		ret = EAGAIN;
+		goto func_exit;
+	}
 
 	if (unlikely(!lib.running)) {
 		if (unlikely((ret = start_glc())))
@@ -425,8 +436,12 @@ int start_capture_impl()
 	lib.flags |= LIB_CAPTURING;
 	glc_log(&mpriv.glc, GLC_INFO, "main", "started capturing");
 
-	return 0;
+func_exit:
+	pthread_mutex_unlock(&mpriv.capture_action_lock);
+	return ret;
 err:
+	pthread_mutex_unlock(&mpriv.capture_action_lock);
+err_nolock:
 	glc_log(&mpriv.glc, GLC_ERROR, "main",
 		"can't start capturing: %s (%d)", strerror(ret), ret);
 	return ret;
@@ -436,8 +451,13 @@ int stop_capture()
 {
 	int ret;
 
-	if (unlikely(!(lib.flags & LIB_CAPTURING)))
-		return EAGAIN;
+	if (unlikely(ret = pthread_mutex_lock(&mpriv.capture_action_lock)))
+		goto err_nolock;
+
+	if (unlikely(!(lib.flags & LIB_CAPTURING))) {
+		ret = EAGAIN;
+		goto func_exit;
+	}
 
 	if (unlikely((ret = alsa_capture_stop_all())))
 		goto err;
@@ -450,9 +470,12 @@ int stop_capture()
 	lib.flags &= ~LIB_CAPTURING;
 	mpriv.stop_time = glc_state_time(&mpriv.glc);
 	glc_log(&mpriv.glc, GLC_INFO, "main", "stopped capturing");
-
-	return 0;
+func_exit:
+	pthread_mutex_unlock(&mpriv.capture_action_lock);
+	return ret;
 err:
+	pthread_mutex_unlock(&mpriv.capture_action_lock);
+err_nolock:
 	glc_log(&mpriv.glc, GLC_ERROR, "main",
 		"can't stop capturing: %s (%d)", strerror(ret), ret);
 	return ret;
@@ -473,7 +496,8 @@ int start_glc()
 	if (mpriv.pipe_exec_file) {
 		if (unlikely((ret = pipe_sink_init(&mpriv.sink, &mpriv.glc,
 						mpriv.pipe_exec_file,
-						mpriv.flags & MAIN_PIPE_VFLIP))))
+						mpriv.flags & MAIN_PIPE_VFLIP,
+						&stop_capture))))
 			return ret;
 	} else {
 		if (unlikely((ret = file_sink_init(&mpriv.sink, &mpriv.glc))))

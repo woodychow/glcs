@@ -65,6 +65,7 @@ struct pipe_runtime_s
 	glc_flags_t flags;
 	glc_stream_id_t id;
 	struct timespec wait_time;
+	int write_frame_ret;
 };
 
 typedef struct {
@@ -75,9 +76,12 @@ typedef struct {
 	struct pipe_runtime_s       runtime;
 	struct pipe_stream_params_s params;
 	callback_request_func_t     callback;
+	int (*stop_capture_cb)();
+	ps_buffer_t *from;
 } pipe_sink_t;
 
 static void pipe_finish_callback(void *ptr, int err);
+static int pipe_close_callback(glc_thread_state_t *state);
 static int pipe_read_callback(glc_thread_state_t *state);
 static int pipe_create_callback(void *ptr, void **threadptr);
 
@@ -109,7 +113,8 @@ static sink_ops_t pipe_sink_ops = {
 	.destroy             = pipe_sink_destroy,
 };
 
-int pipe_sink_init(sink_t *sink, glc_t *glc, const char *exec_file, int invert)
+int pipe_sink_init(sink_t *sink, glc_t *glc, const char *exec_file, int invert,
+		   int (*stop_capture_cb)())
 {
 	int ret;
 	pipe_sink_t *pipe_sink = (pipe_sink_t*)calloc(1,sizeof(pipe_sink_t));
@@ -134,12 +139,14 @@ int pipe_sink_init(sink_t *sink, glc_t *glc, const char *exec_file, int invert)
 		return ret;
 	}
 
-	pipe_sink->sink_base.ops  = &pipe_sink_ops;
-	pipe_sink->glc            = glc;
-	pipe_sink->thread.flags   = GLC_THREAD_READ;
-	pipe_sink->thread.ptr     = pipe_sink;
+	pipe_sink->sink_base.ops   = &pipe_sink_ops;
+	pipe_sink->glc             = glc;
+	pipe_sink->stop_capture_cb = stop_capture_cb;
+	pipe_sink->thread.flags    = GLC_THREAD_READ;
+	pipe_sink->thread.ptr      = pipe_sink;
 	pipe_sink->thread.thread_create_callback = &pipe_create_callback;
 	pipe_sink->thread.read_callback   = &pipe_read_callback;
+	pipe_sink->thread.close_callback  = &pipe_close_callback;
 	pipe_sink->thread.finish_callback = &pipe_finish_callback;
 	pipe_sink->thread.threads = 1;
 
@@ -165,6 +172,9 @@ int pipe_sink_destroy(sink_t sink)
 
 int pipe_can_resume(sink_t sink)
 {
+	pipe_sink_t *pipe_sink = (pipe_sink_t*)sink;
+	if (pipe_sink->from)
+		ps_buffer_drain(pipe_sink->from);
 	return 0;
 }
 
@@ -471,6 +481,18 @@ static int write_video_frame(pipe_sink_t *pipe_sink,
 	return 0;
 }
 
+int pipe_close_callback(glc_thread_state_t *state)
+{
+	pipe_sink_t *pipe_sink = (pipe_sink_t*) state->ptr;
+	if (unlikely(pipe_sink->runtime.write_frame_ret)) {
+		pipe_sink->runtime.write_frame_ret = 0;
+		pipe_sink->from = state->from;
+		pipe_sink->stop_capture_cb();
+		pipe_sink->from = NULL;
+	}
+	return 0;
+}
+
 int pipe_read_callback(glc_thread_state_t *state)
 {
 	pipe_sink_t *pipe_sink = (pipe_sink_t*) state->ptr;
@@ -512,7 +534,7 @@ int pipe_read_callback(glc_thread_state_t *state)
 				if (unlikely(pic_hdr->id != pipe_sink->runtime.id))
 					return 0;
 			}
-			ret = write_video_frame(pipe_sink,
+			pipe_sink->runtime.write_frame_ret = write_video_frame(pipe_sink,
 					&state->read_data[sizeof(glc_video_frame_header_t)]
 				);
 			break;
@@ -581,7 +603,7 @@ void close_pipe(glc_t *glc, struct pipe_runtime_s *rt)
 		 * there is a risk that some system resources do not get properly released
 		 * forcing a reboot to clean up this unfortunate state.
 		 */
-		kill_wait_time.tv_sec++;
+		kill_wait_time.tv_sec += 3;
 		ret = glcs_signal_timed_waitpid(glc, rt->consumer_proc, &status, &kill_wait_time);
 		if (!ret || errno == ECHILD)
 			goto child_gone;

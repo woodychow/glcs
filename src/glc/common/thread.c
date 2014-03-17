@@ -79,10 +79,10 @@ int glc_thread_create(glc_t *glc, glc_thread_t *thread, ps_buffer_t *from,
 		calloc(1, sizeof(struct glc_thread_private_s)))))
 		return ENOMEM;
 
-	thread->priv = private;
-	private->glc = glc;
-	private->from = from;
-	private->to = to;
+	thread->priv    = private;
+	private->glc    = glc;
+	private->from   = from;
+	private->to     = to;
 	private->thread = thread;
 
 	pthread_mutex_init(&private->open, NULL);
@@ -146,7 +146,8 @@ void *glc_thread(void *argptr)
 
 	write_size_set = ret = has_locked = packets_init = 0;
 	state.flags = state.read_size = state.write_size = 0;
-	state.ptr = thread->ptr;
+	state.ptr   = thread->ptr;
+	state.from  = private->from;
 
 	glc_thread_block_signals();
 	glc_thread_set_rt_priority(private->glc, thread->ask_rt);

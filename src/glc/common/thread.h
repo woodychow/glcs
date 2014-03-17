@@ -82,6 +82,15 @@ typedef struct {
 	void *ptr;
 	/** per-thread argument pointer */
 	void *threadptr;
+
+	/**
+	 * This variable is to make possible buffer drain from callback.
+	 * This is leaking some implementation data but the right alternative
+	 * would be to pass an opaque void pointer + a new function
+	 * glc_thread_drain_buffer( glc_thread_state_t *state );
+	 * and I find this a bit heavy for the risk the shortcut represents.
+	 */
+	ps_buffer_t *from;
 } glc_thread_state_t;
 
 /** thread does read operations */

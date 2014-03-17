@@ -2,6 +2,8 @@ Version 0.6.1 -
 
 - Give more time to pipe process to terminate after having sent a SIGINT.
 - Remove custom sighandler code.
+- Allow the pipe sink thread to recuperate from a failure from child program
+  and make possible a capture restart without having to restart the host app.
 
 Version 0.6.0 - March 6, 2014
 
