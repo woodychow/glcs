@@ -581,7 +581,7 @@ int pipe_open_target(sink_t sink, const char *filename)
 void close_pipe(glc_t *glc, struct pipe_runtime_s *rt)
 {
 	if (rt->w_pipefd >= 0) {
-		int ret, status;
+		int ret, status, i;
 		struct timespec kill_wait_time;
 
 		/* closing the pipe should terminate the child */
@@ -592,25 +592,28 @@ void close_pipe(glc_t *glc, struct pipe_runtime_s *rt)
 		ret = glcs_signal_timed_waitpid(glc, rt->consumer_proc, &status, &rt->wait_time);
 		if (!ret || errno == ECHILD)
 			goto child_gone;
-		/* ask one more time nicely */
-		glc_log(glc, GLC_DEBUG, "pipe", "sending SIGINT to child pid %d",
-			rt->consumer_proc);
-		kill(rt->consumer_proc, SIGINT);
-		kill_wait_time = rt->wait_time;
 
+		kill_wait_time = rt->wait_time;
 		/*
 		 * very important to be patient here because by sending SIGKILL
 		 * there is a risk that some system resources do not get properly released
 		 * forcing a reboot to clean up this unfortunate state.
 		 */
-		kill_wait_time.tv_sec += 3;
-		ret = glcs_signal_timed_waitpid(glc, rt->consumer_proc, &status, &kill_wait_time);
-		if (!ret || errno == ECHILD)
-			goto child_gone;
+		kill_wait_time.tv_sec += 2;
+
+		/* ask one more time nicely */
+		for (i = 0; i < 3; ++i) {
+			glc_log(glc, GLC_DEBUG, "pipe", "sending SIGINT to child pid %d",
+				rt->consumer_proc);
+			kill(rt->consumer_proc, SIGINT);
+			ret = glcs_signal_timed_waitpid(glc, rt->consumer_proc, &status, &kill_wait_time);
+			if (!ret || errno == ECHILD)
+				goto child_gone;
+		}
 
 		glc_log(glc, GLC_DEBUG, "pipe", "sending SIGKILL to child pid %d",
 			rt->consumer_proc);
-		kill(rt->consumer_proc, SIGKILL);
+		kill(rt->consumer_proc, SIGSEGV);
 		waitpid(rt->consumer_proc, &status, 0);
 child_gone:
 		if (glc_log_get_level(glc) >= GLC_INFO)
