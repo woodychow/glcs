@@ -613,7 +613,7 @@ void close_pipe(glc_t *glc, struct pipe_runtime_s *rt)
 
 		glc_log(glc, GLC_DEBUG, "pipe", "sending SIGKILL to child pid %d",
 			rt->consumer_proc);
-		kill(rt->consumer_proc, SIGSEGV);
+		kill(rt->consumer_proc, SIGKILL);
 		waitpid(rt->consumer_proc, &status, 0);
 child_gone:
 		if (glc_log_get_level(glc) >= GLC_INFO)
