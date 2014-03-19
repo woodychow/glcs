@@ -1,5 +1,6 @@
-Version 0.6.1 -
+Version 0.6.1 - March 19, 2014
 
+- Webcam overlay + audio streams mix
 - Give more time to pipe process to terminate after having sent a SIGINT.
 - Remove custom sighandler code.
 - Allow the pipe sink thread to recuperate from a failure from child program
