@@ -333,7 +333,7 @@ static int open_pipe(pipe_sink_t *pipe_sink, glc_video_format_message_t *format)
 	}
 
 	frame_size = r * format->height;
-	glc_util_set_pipe_size(pipe_sink->glc,stream_pipe[1], 2*frame_size);
+	glc_util_set_pipe_size(pipe_sink->glc,stream_pipe[1], 15*frame_size);
 
 	/*
 	 * Check SIGCHLD disposition and issue warning if there is a risk to interfere
