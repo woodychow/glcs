@@ -32,7 +32,8 @@
 extern "C" {
 #endif
 
-__PUBLIC int pipe_sink_init(sink_t *sink, glc_t *glc, const char *exec_file, int invert,
+__PUBLIC int pipe_sink_init(sink_t *sink, glc_t *glc, const char *exec_file,
+			    int invert, unsigned delay_ms,
 			    int (*stop_capture_cb)());
 
 #ifdef __cplusplus

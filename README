@@ -144,6 +144,15 @@ appears first. video encoders expect the image data in the opposite direction. T
 be first. You can adress this later down the pipe with, for instance, ffmpeg vflip filter but it is
 more efficient to have the correct orientation upstream.
 
+GLC_PIPE_DELAY <int> default: 0
+
+delay in ms for writting the frames into the pipe after having created the pipe reader proces.
+This parameter has been added after having observed an small desynchronization between the
+audio and the video by having added a slow to initialize video input (webcam) to the mix in my
+ffmpeg setup.
+
+http://ffmpeg.org/pipermail/ffmpeg-devel/2014-March/155704.html
+
 How to setup an audio split with ALSA
 -------------------------------------
 

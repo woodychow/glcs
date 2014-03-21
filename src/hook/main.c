@@ -74,6 +74,7 @@ struct main_private_s {
 	pack_t pack;
 
 	unsigned int capture_id;
+	unsigned pipe_delay_ms;
 	const char *pipe_exec_file;
 	const char *stream_file_fmt;
 	char *stream_file;
@@ -218,6 +219,9 @@ int load_environ()
 				mpriv.flags |= MAIN_PIPE_VFLIP;
 		}
 	}
+
+	if ((env_val = getenv("GLC_PIPE_DELAY")))
+		mpriv.pipe_delay_ms = atoi(env_val);
 
 	/*
 	 * pipe sink sends only raw uncompressed data.
@@ -497,6 +501,7 @@ int start_glc()
 		if (unlikely((ret = pipe_sink_init(&mpriv.sink, &mpriv.glc,
 						mpriv.pipe_exec_file,
 						mpriv.flags & MAIN_PIPE_VFLIP,
+						mpriv.pipe_delay_ms,
 						&stop_capture))))
 			return ret;
 	} else {

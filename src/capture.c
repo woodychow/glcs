@@ -1,9 +1,26 @@
 /**
  * \file capture.c
- * \brief capture utility
- * \author Pyry Haulos <pyry.haulos@gmail.com>
- * \date 2007-2008
- * For conditions of distribution and use, see copyright notice in glc.h
+ * \brief capture utility adapted from original work (glc) from Pyry Haulos <pyry.haulos@gmail.com>
+ * \author Olivier Langlois <olivier@trillion01.com>
+ * \date 2014
+
+    Copyright 2014 Olivier Langlois
+
+    This file is part of glcs.
+
+    glcs is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    glcs is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with glcs.  If not, see <http://www.gnu.org/licenses/>.
+
  */
 
 /* for setenv() */
@@ -71,6 +88,7 @@ int main(int argc, char *argv[])
 		{'P', "rtprio",                 "GLC_RTPRIO",                   NULL},
 		{ 0 , "pipe",                   "GLC_PIPE",                     NULL},
 		{ 0 , "pipe_invert",            "GLC_PIPE_INVERT",               "1"},
+		{ 0 , "pipe_delay",		"GLC_PIPE_DELAY",		 "0"},
 		{ 0 , NULL,			NULL,				NULL}
 	};
 
@@ -202,6 +220,8 @@ usage:
 	       "                                 3. fps\n"
 	       "                                 4. output filename\n"
 	       "      --pipe_invert          vertically flip images sent to the pipe\n"
+	       "      --pipe_delay           delay in ms to write frames into pipe after\n"
+	       "                             having created the pipe reader process\n"
 	       "  -V, --version              print glc version and exit\n"
 	       "  -h, --help                 show this help\n");
 	return EXIT_FAILURE;

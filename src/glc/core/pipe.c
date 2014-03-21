@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <time.h>
+#include <inttypes.h>
 #include <sys/epoll.h>
 
 #include <glc/common/state.h>
@@ -53,6 +54,15 @@ struct pipe_stream_params_s
 	const char *target_file;
 	const char *host_app_name;
 	double fps;
+	/*
+	 * http://ffmpeg.org/pipermail/ffmpeg-devel/2014-March/155704.html
+	 *
+	 * A webcam video initialization can take ~280-300ms. This may induce
+	 * synch issue between audio video. It is possible to configure a delay
+	 * between the time where the pipe reader process is created and the time
+	 * where the first frame is written to the pipe to address this issue.
+	 */
+	unsigned delay_ns;
 };
 
 struct pipe_runtime_s
@@ -63,6 +73,7 @@ struct pipe_runtime_s
 	frame_writer_t writer;
 	pid_t consumer_proc;
 	glc_flags_t flags;
+	glc_utime_t first_frame_ts;
 	glc_stream_id_t id;
 	struct timespec wait_time;
 	int write_frame_ret;
@@ -113,7 +124,8 @@ static sink_ops_t pipe_sink_ops = {
 	.destroy             = pipe_sink_destroy,
 };
 
-int pipe_sink_init(sink_t *sink, glc_t *glc, const char *exec_file, int invert,
+int pipe_sink_init(sink_t *sink, glc_t *glc, const char *exec_file,
+		   int invert, unsigned delay_ms,
 		   int (*stop_capture_cb)())
 {
 	int ret;
@@ -154,6 +166,7 @@ int pipe_sink_init(sink_t *sink, glc_t *glc, const char *exec_file, int invert,
 
 	pipe_sink->params.exec_file = exec_file;
 	pipe_sink->params.fps       = 0.0;
+	pipe_sink->params.delay_ns  = delay_ms*1000000;
 	pipe_sink->runtime.w_pipefd = -1;
 
 	return 0;
@@ -277,7 +290,7 @@ static glc_video_format_message_t *get_video_format(pipe_sink_t *pipe_sink, glc_
  * most signals (see common/thread.c). To change that we could unblock some signals in
  * pipe_create_callback().
  */
-static int open_pipe(pipe_sink_t *pipe_sink, glc_video_format_message_t *format)
+static int open_pipe(pipe_sink_t *pipe_sink, glc_video_format_message_t *format, glc_utime_t cur_ts)
 {
 	int ret = 0;
 	int stream_pipe[2];
@@ -402,12 +415,17 @@ static int open_pipe(pipe_sink_t *pipe_sink, glc_video_format_message_t *format)
 		_exit(127); /* exec failed */
 	}
 	/* else parent */
-	pipe_sink->runtime.w_pipefd      = stream_pipe[1];
-	pipe_sink->runtime.pipe_ready    = 1;
-	pipe_sink->runtime.consumer_proc = pid;
+	pipe_sink->runtime.w_pipefd       = stream_pipe[1];
+	pipe_sink->runtime.pipe_ready     = 1;
+	pipe_sink->runtime.consumer_proc  = pid;
+	pipe_sink->runtime.first_frame_ts = cur_ts +
+					    (glc_utime_t)pipe_sink->params.delay_ns;
 	close(stream_pipe[0]);
 	glc_log(pipe_sink->glc, GLC_INFO, "pipe",
 		"'%s' (%d) has been started", pipe_sink->params.exec_file, pid);
+	glc_log(pipe_sink->glc, GLC_DEBUG, "pipe",
+		"Applying a delay of %u to write first frame at %" PRIu64,
+		pipe_sink->params.delay_ns, cur_ts);
 	pthread_sigmask(SIG_SETMASK, &oset, NULL);
 	return ret;
 err:
@@ -520,12 +538,12 @@ int pipe_read_callback(glc_thread_state_t *state)
 
 			if (likely(pipe_sink->runtime.w_pipefd < 0)) {
 				glc_video_format_message_t *format;
-				if (unlikely(!(format = get_video_format(pipe_sink,pic_hdr->id)))) {
+				if (unlikely(!(format = get_video_format(pipe_sink, pic_hdr->id)))) {
 					return 1;
 				}
 
 				// open pipe for this stream
-				if (unlikely((ret = open_pipe(pipe_sink, format))))
+				if (unlikely((ret = open_pipe(pipe_sink, format, pic_hdr->time))))
 					return ret;
 
 				// if successful, record the stream id played
@@ -534,7 +552,8 @@ int pipe_read_callback(glc_thread_state_t *state)
 				if (unlikely(pic_hdr->id != pipe_sink->runtime.id))
 					return 0;
 			}
-			pipe_sink->runtime.write_frame_ret = write_video_frame(pipe_sink,
+			if (likely(pic_hdr->time >= pipe_sink->runtime.first_frame_ts))
+				pipe_sink->runtime.write_frame_ret = write_video_frame(pipe_sink,
 					&state->read_data[sizeof(glc_video_frame_header_t)]
 				);
 			break;

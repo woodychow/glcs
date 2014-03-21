@@ -79,6 +79,13 @@ export GLC_PIPE="/usr/share/glcs/scripts/pipe_ffmpeg.sh"
 #
 export GLC_PIPE_INVERT=1
 
+# delay in ms between the creation of the pipe reader process
+# and the time we start writting frames to the pipe.
+# This can help keep audio/video in sync in a ffmpeg setup
+# with several inputs and 1 of them is slow to initialize
+# http://ffmpeg.org/pipermail/ffmpeg-devel/2014-March/155704.html
+export GLC_PIPE_DELAY=0
+
 # use GL_PACK_ALIGNMENT 8
 #export GLC_CAPTURE_DWORD_ALIGNED=1
 

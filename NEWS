@@ -1,3 +1,8 @@
+Version 0.6.2
+
+- Add the option to delay the writting of the frames in the pipe after having
+  created the pipe reader process.
+
 Version 0.6.1 - March 19, 2014
 
 - Webcam overlay + audio streams mix
