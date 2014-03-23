@@ -409,7 +409,7 @@ int alsa_capture_init_hw(alsa_capture_t alsa_capture, snd_pcm_hw_params_t *hw_pa
 		goto err;
 
 	glc_log(alsa_capture->glc, GLC_INFO, "alsa_capture",
-		"buffer size: %d num periods: %d period len %u usec", max_buffer_size,
+		"buffer size: %lu num periods: %d period len %u usec", max_buffer_size,
 		alsa_capture->min_periods, period_time);
 err:
 	return -ret;

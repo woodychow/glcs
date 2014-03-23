@@ -38,6 +38,7 @@
 #include <GL/glx.h>
 #include <GL/glext.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include <packetstream.h>
 #include <pthread.h>
 #include <dlfcn.h>
@@ -397,7 +398,7 @@ int gl_capture_destroy(gl_capture_t gl_capture)
 		gl_capture->video = gl_capture->video->next;
 
 		glc_log(gl_capture->glc, GLC_PERF, "gl_capture",
-			"captured %u frames in %llu nsec",
+			"captured %u frames in %" PRIu64 " nsec",
 			del->num_frames, del->capture_time_ns);
 
 		/* we might be in wrong thread */
