@@ -152,8 +152,15 @@ int invert_configure(frame_writer_t writer, int r_sz, int h)
 
 	if (unlikely(r_sz != invert_writer->row_sz))
 		i = 0;
-	else
+	else {
 		i = invert_writer->num_lines;
+		/*
+		 * If previous capture has been interrupted in the middle of writing
+		 * a frame, reset the size of the previous current line.
+		 */
+		if (invert_writer->cur_idx < invert_writer->num_lines)
+			invert_writer->iov[invert_writer->cur_idx].iov_len = r_sz;
+	}
 	for (; i < h; ++i)
 		invert_writer->iov[i].iov_len = r_sz;
 	invert_writer->row_sz     = r_sz;
