@@ -145,7 +145,9 @@ int alsa_capture_destroy(alsa_capture_t alsa_capture)
 	alsa_capture->stop_capture = 1;
 
 	if (alsa_capture->thread.running) {
-		write(alsa_capture->interrupt_pipe[1],"",1);
+		if (unlikely(write(alsa_capture->interrupt_pipe[1],"",1) != 1))
+			glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture",
+			 "unable to write to the interrupt pipe");
 		pthread_join(alsa_capture->thread.thread, NULL);
 		alsa_capture->thread.running = 0;
 	}
@@ -201,7 +203,9 @@ int alsa_capture_start(alsa_capture_t alsa_capture)
 		return EAGAIN;
 
 	if (!alsa_capture->thread.running) {
-		pipe(alsa_capture->interrupt_pipe);
+		if (unlikely(pipe(alsa_capture->interrupt_pipe) != 0))
+			glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture",
+			 "pipe() did not succeed.");
 		glc_util_set_nonblocking(alsa_capture->interrupt_pipe[0]);
 		glc_simple_thread_create(alsa_capture->glc,
 					&alsa_capture->thread,
@@ -212,7 +216,9 @@ int alsa_capture_start(alsa_capture_t alsa_capture)
 		glc_log(alsa_capture->glc, GLC_INFO, "alsa_capture",
 			 "starting device %s", alsa_capture->device);
 		alsa_capture->skip_data = 0;
-		write(alsa_capture->interrupt_pipe[1],"",1);
+		if (unlikely(write(alsa_capture->interrupt_pipe[1],"",1) != 1))
+			glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture",
+			 "unable to write to the interrupt pipe");
 	} else
 		glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture",
 			 "device %s already started", alsa_capture->device);
@@ -229,7 +235,9 @@ int alsa_capture_stop(alsa_capture_t alsa_capture)
 		glc_log(alsa_capture->glc, GLC_INFO, "alsa_capture",
 			 "stopping device %s", alsa_capture->device);
 		alsa_capture->skip_data = 1;
-		write(alsa_capture->interrupt_pipe[1],"",1);
+		if (unlikely(write(alsa_capture->interrupt_pipe[1], "", 1) != 1))
+			glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture",
+			 "unable to write to the interrupt pipe");
 	} else
 		glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture",
 			 "device %s already stopped", alsa_capture->device);
