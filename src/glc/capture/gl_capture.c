@@ -104,6 +104,7 @@ struct gl_capture_video_stream_s {
 
 	/* stats related vars */
 	unsigned num_frames;
+	unsigned num_captured_frames;
 	uint64_t capture_time_ns;
 	int      gather_stats;
 };
@@ -398,7 +399,7 @@ int gl_capture_destroy(gl_capture_t gl_capture)
 
 		glc_log(gl_capture->glc, GLC_PERF, "gl_capture",
 			"captured %u frames in %llu nsec",
-			del->num_frames, del->capture_time_ns);
+			del->num_captured_frames, del->capture_time_ns);
 
 		/* we might be in wrong thread */
 		if (del->indicator_list)
@@ -836,6 +837,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 
 	/* not really needed until now */
 	gl_capture_update_video_stream(gl_capture, video);
+	video->num_frames++;
 
 	/* if PBO is not active, just start transfer and finish */
 	if (unlikely((gl_capture->flags & GL_CAPTURE_USE_PBO) &&
@@ -896,7 +898,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	}
 
 	ps_packet_close(&video->packet);
-	video->num_frames++;
+	video->num_captured_frames++;
 	now = glc_state_time(gl_capture->glc);
 
 	if (unlikely((gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
@@ -923,7 +925,8 @@ cancel:
 	if (ret == EBUSY) {
 		ret = 0;
 		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
-			 "dropped frame, buffer not ready");
+			 "dropped frame #%u, buffer not ready",
+			video->num_frames);
 	}
 	ps_packet_cancel(&video->packet);
 	goto finish;
