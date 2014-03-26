@@ -813,7 +813,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	glc_message_header_t msg;
 	glc_video_frame_header_t pic;
 	glc_utime_t now;
-	glc_utime_t before_capture,after_capture;
+	glc_utime_t before_capture = 0, after_capture = 0;
 	char *dma;
 	int ret = 0;
 

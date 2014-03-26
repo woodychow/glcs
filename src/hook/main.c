@@ -402,7 +402,7 @@ int reload_capture()
 	return start_capture_impl();
 }
 
-int start_capture()
+void start_capture()
 {
 	if (mpriv.sink && !mpriv.sink->ops->can_resume(mpriv.sink))
 		reload_capture();
