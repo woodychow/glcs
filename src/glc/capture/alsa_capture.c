@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sched.h>
+#include <pthread.h>
 #include <packetstream.h>
 #include <alsa/asoundlib.h>
 
