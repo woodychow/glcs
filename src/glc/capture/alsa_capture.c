@@ -35,6 +35,7 @@
 #include <errno.h>
 #include <sched.h>
 #include <pthread.h>
+#include <inttypes.h>
 #include <packetstream.h>
 #include <alsa/asoundlib.h>
 
@@ -561,7 +562,7 @@ int alsa_capture_read_pcm(alsa_capture_t alsa_capture, char *dma)
 			dma    += r * alsa_capture->bytes_per_frame;
 			if (unlikely(count))
 				glc_log(alsa_capture->glc, GLC_WARN, "alsa_capture",
-					"read %ld, expected %zd",
+					"read %zd, expected %" PRIu64,
 				 	r * alsa_capture->bytes_per_frame,
 				 	alsa_capture->hdr.size);
 		}
