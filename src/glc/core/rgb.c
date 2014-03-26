@@ -125,8 +125,6 @@ static void rgbget_video_stream(rgb_t rgb, glc_stream_id_t id,
 		struct rgb_video_stream_s **ctx);
 
 static int rgb_video_format_message(rgb_t rgb, glc_video_format_message_t *video_format_message);
-/* static int rgb_convert(rgb_t rgb, struct rgb_video_stream_s *ctx,
-		unsigned char *from, unsigned char *to); */
 
 static int rgb_init_lookup(rgb_t rgb);
 static int rgb_convert_lookup(rgb_t rgb, struct rgb_video_stream_s *ctx,
@@ -281,42 +279,6 @@ int rgb_video_format_message(rgb_t rgb, glc_video_format_message_t *video_format
 
 	return 0;
 }
-
-#ifdef FALSE
-int rgb_convert(rgb_t rgb, struct rgb_video_stream_s *video,
-		unsigned char *from, unsigned char *to)
-{
-	unsigned int x, y, Cpix;
-	unsigned char *Y, *Cb, *Cr;
-
-	Y = from;
-	Cb = &from[video->h * video->w];
-	Cr = &from[video->h * video->w + (video->h / 2) * (video->w / 2)];
-	Cpix = 0;
-
-#define CONVERT(xadd, yrgbadd, yadd) 								  \
-	to[((x + (xadd)) + ((video->h - y) + (yrgbadd)) * video->w) * 3 + 2] = 			  \
-		YCbCrJPEG_TO_RGB_Rd(Y[(x + (xadd)) + (y + (yadd)) * video->w], Cb[Cpix], Cr[Cpix]); \
-	to[((x + (xadd)) + ((video->h - y) + (yrgbadd)) * video->w) * 3 + 1] = 			  \
-		YCbCrJPEG_TO_RGB_Gd(Y[(x + (xadd)) + (y + (yadd)) * video->w], Cb[Cpix], Cr[Cpix]); \
-	to[((x + (xadd)) + ((video->h - y) + (yrgbadd)) * video->w) * 3 + 0] = 			  \
-		YCbCrJPEG_TO_RGB_Bd(Y[(x + (xadd)) + (y + (yadd)) * video->w], Cb[Cpix], Cr[Cpix]);
-
-	/* YCBCR_420JPEG frame dimensions are always divisible by two */
-	for (y = 0; y < video->h; y += 2) {
-		for (x = 0; x < video->w; x += 2) {
-			CONVERT(0, -1, 0)
-			CONVERT(1, -1, 0)
-			CONVERT(0, -2, 1)
-			CONVERT(1, -2, 1)
-			
-			Cpix++;
-		}
-	}
-#undef CONVERT
-	return 0;
-}
-#endif
 
 int rgb_init_lookup(rgb_t rgb)
 {
