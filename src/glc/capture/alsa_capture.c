@@ -195,7 +195,6 @@ int alsa_capture_set_channels(alsa_capture_t alsa_capture, unsigned int channels
 
 int alsa_capture_start(alsa_capture_t alsa_capture)
 {
-	int ret;
 	if (unlikely(alsa_capture == NULL))
 		return EINVAL;
 

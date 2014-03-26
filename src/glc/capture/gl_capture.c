@@ -768,7 +768,6 @@ int gl_capture_update_video_stream(gl_capture_t gl_capture,
 			  struct gl_capture_video_stream_s *video)
 {
 	unsigned int w, h;
-	int ret;
 
 	/* initialize PBO if not already done */
 	if ((!(gl_capture->flags & GL_CAPTURE_USE_PBO)) &&
