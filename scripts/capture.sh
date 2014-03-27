@@ -95,7 +95,7 @@ export SDL_AUDIODRIVER=alsa
 # log verbosity
 export GLC_LOG=4
 
-export GLC_FILE="/home/lano1106/%app%-%pid%-%capture%.glc"
+export GLC_FILE="%app%-%pid%-%capture%.glc"
 
 # log file
 export GLC_LOG_FILE="/tmp/glcs.log"
