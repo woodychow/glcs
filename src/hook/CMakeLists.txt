@@ -8,7 +8,7 @@ ADD_LIBRARY("glc-hook" SHARED "lib.h" "alsa.c" "main.c" "opengl.c" "x11.c")
 TARGET_LINK_LIBRARIES("glc-hook" "glc-core" "glc-capture"
                       ${ELFHACKS_LIBRARY} ${PACKETSTREAM_LIBRARY})
 SET_TARGET_PROPERTIES("glc-hook" PROPERTIES OUTPUT_NAME "glc-hook"
-                      VERSION ${GLC_VER} SOVERSION ${GLC_SOVER})
+                      VERSION ${GLCS_VER} SOVERSION ${GLCS_SOVER})
 
 IF (UNIX)
     INSTALL(TARGETS "glc-hook" LIBRARY DESTINATION ${LIBRARY_INSTALL_DIR})

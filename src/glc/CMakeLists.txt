@@ -3,15 +3,15 @@ IF (NOT GIT_DIR AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
     SET(GIT_DIR ${PROJECT_SOURCE_DIR})
 ENDIF (NOT GIT_DIR AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
 
-# Use `git describe` to set a version number. Fall-back to GLC_VER.
+# Use `git describe` to set a version number. Fall-back to GLCS_VER.
 IF (GIT_DIR)
     EXEC_PROGRAM("git" ${GIT_DIR} ARGS "describe --always --dirty"
-                 OUTPUT_VARIABLE GLC_VERSION RETURN_VALUE GIT_RETURN)
+                 OUTPUT_VARIABLE GLCS_VERSION RETURN_VALUE GIT_RETURN)
     IF (NOT GIT_RETURN EQUAL 0)
-        SET(GLC_VERSION ${GLC_VER})
+        SET(GLCS_VERSION ${GLCS_VER})
     ENDIF (NOT GIT_RETURN EQUAL 0)
 ELSE (GIT_DIR)
-    SET(GLC_VERSION ${GLC_VER})
+    SET(GLCS_VERSION ${GLCS_VER})
 ENDIF (GIT_DIR)
 
 CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/common/version.h.in"
@@ -52,7 +52,7 @@ SET(COMMON_SRC "common/core.h" "common/glc.h" "common/log.h"
     "common/log.c" "common/signal.c" "common/state.c" "common/thread.c"
     "common/util.c")
 
-# GLC Core library.
+# GLCS Core library.
 ADD_LIBRARY("glc-core" SHARED ${COMMON_SRC}
     "core/color.h" "core/copy.h" "core/file.h" "core/frame_writers.h"
     "core/info.h" "core/pack.h" "core/pipe.h" "core/rgb.h" "core/scale.h"
@@ -62,7 +62,7 @@ ADD_LIBRARY("glc-core" SHARED ${COMMON_SRC}
     "core/tracker.c" "core/ycbcr.c" ${QUICKLZ_SRC} ${LZO_SRC} ${LZJB_SRC})
 TARGET_LINK_LIBRARIES("glc-core" "m" ${ACKETSTREAM_LIBRARY})
 SET_TARGET_PROPERTIES("glc-core" PROPERTIES OUTPUT_NAME "glc-core"
-                      VERSION ${GLC_VER} SOVERSION ${GLC_SOVER})
+                      VERSION ${GLCS_VER} SOVERSION ${GLCS_SOVER})
 
 # Capture library.
 ADD_LIBRARY("glc-capture" SHARED ${COMMON_SRC}
@@ -71,7 +71,7 @@ ADD_LIBRARY("glc-capture" SHARED ${COMMON_SRC}
     "capture/audio_capture.c" "capture/gl_capture.c")
 TARGET_LINK_LIBRARIES("glc-capture" "GL" "dl" "asound" "X11" "Xxf86vm" "glc-core")
 SET_TARGET_PROPERTIES("glc-capture" PROPERTIES OUTPUT_NAME "glc-capture"
-                      VERSION ${GLC_VER} SOVERSION ${GLC_SOVER})
+                      VERSION ${GLCS_VER} SOVERSION ${GLCS_SOVER})
 
 # Player library.
 ADD_LIBRARY("glc-play" SHARED ${COMMON_SRC}
@@ -79,14 +79,14 @@ ADD_LIBRARY("glc-play" SHARED ${COMMON_SRC}
     "play/alsa_play.c" "play/demux.c" "play/gl_play.c")
 TARGET_LINK_LIBRARIES("glc-play" "GL" "asound" "X11" "glc-core")
 SET_TARGET_PROPERTIES("glc-play" PROPERTIES OUTPUT_NAME "glc-play"
-                      VERSION ${GLC_VER} SOVERSION ${GLC_SOVER})
+                      VERSION ${GLCS_VER} SOVERSION ${GLCS_SOVER})
 
 ADD_LIBRARY("glc-export" SHARED ${COMMON_SRC}
     "export/img.h" "export/wav.h" "export/yuv4mpeg.h"
     "export/img.c" "export/wav.c" "export/yuv4mpeg.c")
 TARGET_LINK_LIBRARIES("glc-export" "png" "glc-core")
 SET_TARGET_PROPERTIES("glc-export" PROPERTIES OUTPUT_NAME "glc-export"
-                      VERSION ${GLC_VER} SOVERSION ${GLC_SOVER})
+                      VERSION ${GLCS_VER} SOVERSION ${GLCS_SOVER})
 
 
 # Install this stuff!
