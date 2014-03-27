@@ -30,6 +30,7 @@
 #include <signal.h>
 #include <time.h>
 #include <inttypes.h>
+#include <sys/wait.h>
 #include <sys/epoll.h>
 
 #include <glc/common/state.h>

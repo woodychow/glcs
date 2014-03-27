@@ -553,7 +553,7 @@ int gl_play_toggle_fullscreen(gl_play_t gl_play)
 	return 0;
 }
 
-int gl_handle_xevents(gl_play_t gl_play, glc_thread_state_t *state)
+int gl_play_handle_xevents(gl_play_t gl_play, glc_thread_state_t *state)
 {
 	XEvent event;
 	XConfigureEvent *ce;
@@ -622,7 +622,7 @@ int gl_play_read_callback(glc_thread_state_t *state)
 	glc_video_frame_header_t *pic_hdr;
 	glc_utime_t time;
 
-	gl_handle_xevents(gl_play, state);
+	gl_play_handle_xevents(gl_play, state);
 
 	if (state->flags & GLC_THREAD_STOP)
 		return 0;
