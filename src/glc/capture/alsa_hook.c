@@ -48,9 +48,9 @@
 #include <glc/common/log.h>
 #include <glc/common/state.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "alsa_hook.h"
-#include "optimization.h"
 
 #define ALSA_HOOK_CAPTURING    0x1
 #define ALSA_HOOK_ALLOW_SKIP   0x2

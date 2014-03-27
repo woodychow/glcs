@@ -41,7 +41,7 @@
 #include <pthread.h>
 
 #include <glc/common/glc.h>
-#include "optimization.h"
+#include <glc/common/optimization.h>
 
 #define LIB_CAPTURING    0x1
 

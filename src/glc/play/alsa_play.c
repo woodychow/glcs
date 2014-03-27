@@ -43,9 +43,9 @@
 #include <glc/common/util.h>
 #include <glc/common/state.h>
 #include <glc/common/thread.h>
+#include <glc/common/optimization.h>
 
 #include "alsa_play.h"
-#include "optimization.h"
 
 struct alsa_play_s {
 	glc_t *glc;

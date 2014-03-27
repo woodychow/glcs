@@ -41,9 +41,9 @@
 #include <glc/common/log.h>
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "rgb.h"
-#include "optimization.h"
 
 /*
 R'd = Y' + (Cr - 128) * (2 - 2 * Kr)

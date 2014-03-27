@@ -39,9 +39,9 @@
 #include <glc/common/log.h>
 #include <glc/common/state.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "audio_capture.h"
-#include "optimization.h"
 
 #define AUDIO_CAPTURE_CAPTURING       0x1
 #define AUDIO_CAPTURE_CFG_CHANGED     0x2

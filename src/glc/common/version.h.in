@@ -1,0 +1,6 @@
+#ifndef _VERSION_H
+#define _VERSION_H
+
+#define GLC_VERSION "@GLCS_VERSION@"
+
+#endif /* _VERSION_H */

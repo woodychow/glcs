@@ -49,9 +49,9 @@
 #include <glc/common/state.h>
 #include <glc/common/util.h>
 #include <glc/common/thread.h>
+#include <glc/common/optimization.h>
 
 #include "gl_play.h"
-#include "optimization.h"
 
 #define GL_PLAY_RUNNING            0x1
 #define GL_PLAY_INITIALIZED        0x2

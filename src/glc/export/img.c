@@ -42,9 +42,9 @@
 #include <glc/common/log.h>
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "img.h"
-#include "optimization.h"
 
 struct img_private_s;
 typedef int (*img_write_proc)(img_t img,

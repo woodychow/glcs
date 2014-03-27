@@ -41,11 +41,11 @@
 #include <glc/common/state.h>
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
+#include <glc/common/optimization.h>
 
 #include "demux.h"
 #include "gl_play.h"
 #include "alsa_play.h"
-#include "optimization.h"
 
 struct demux_video_stream_s {
 	glc_stream_id_t id;

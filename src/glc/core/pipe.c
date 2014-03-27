@@ -38,12 +38,12 @@
 #include <glc/common/thread.h>
 #include <glc/common/util.h>
 #include <glc/common/signal.h>
+#include <glc/common/optimization.h>
 
 #include <glc/core/tracker.h>
 
 #include "pipe.h"
 #include "frame_writers.h"
-#include "optimization.h"
 
 #define PIPE_WRITING      0x01
 #define PIPE_RUNNING      0x02
