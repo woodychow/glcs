@@ -3,6 +3,8 @@ Version 0.6.2
 - Fix invert_framewriter when restart capture after an interrupted one.
 - Add the option to delay the writting of the frames in the pipe after having
   created the pipe reader process.
+- Improve cmake files.
+- Fix compiler warnings
 
 Version 0.6.1 - March 19, 2014
 
