@@ -40,7 +40,7 @@
 #include <alsa/asoundlib.h>
 #include <pthread.h>
 #include <errno.h>
-#include <sched.h>
+#include <sys/select.h>
 
 #include <glc/common/glc.h>
 #include <glc/common/core.h>
@@ -368,9 +368,10 @@ int alsa_hook_wait_for_thread(alsa_hook_t alsa_hook, struct alsa_hook_stream_s *
 		*       signal handler (f.ex. async mode)
 		*/
 		while (!stream->capture_ready) {
+			struct timeval one_ms = { .tv_sec = 0, .tv_usec = 1000 };
 			if (alsa_hook->flags & ALSA_HOOK_ALLOW_SKIP)
 				goto busy;
-			sched_yield();
+			select(0, NULL, NULL, NULL, &one_ms);
 		}
 	} else
 		sem_wait(&stream->capture_empty);

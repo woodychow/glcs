@@ -33,7 +33,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <sched.h>
+#include <time.h>
 #include <pthread.h>
 #include <inttypes.h>
 #include <packetstream.h>
@@ -576,7 +576,7 @@ int alsa_capture_read_pcm(alsa_capture_t alsa_capture, char *dma)
  * - ps_packet_cancel() error
  * - alsa io error.
  *
- * We can recupurate easilly only from the first type of errors.
+ * We can recuperate easilly only from the first type of errors.
  * If return value is negative, this is a fatal error.
  */
 int alsa_capture_process_pcm(alsa_capture_t alsa_capture, ps_packet_t *packet)
@@ -709,8 +709,10 @@ int alsa_capture_xrun(alsa_capture_t alsa_capture, int err)
 		err = snd_pcm_start(alsa_capture->pcm);
 		break;
 	case -ESTRPIPE:
-		while ((err = snd_pcm_resume(alsa_capture->pcm)) == -EAGAIN)
-			sched_yield();
+		while ((err = snd_pcm_resume(alsa_capture->pcm)) == -EAGAIN) {
+			struct timespec one_ms = { .tv_sec = 0, .tv_nsec = 1000000 };
+			clock_nanosleep(CLOCK_MONOTONIC, 0, &one_ms, NULL);
+		}
 		if (err < 0) {
 			if (unlikely((err = snd_pcm_prepare(alsa_capture->pcm)) < 0))
 				break;

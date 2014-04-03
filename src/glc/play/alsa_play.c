@@ -35,7 +35,7 @@
 #include <unistd.h>
 #include <packetstream.h>
 #include <alsa/asoundlib.h>
-#include <sched.h>
+#include <time.h>
 
 #include <glc/common/glc.h>
 #include <glc/common/core.h>
@@ -356,8 +356,10 @@ int alsa_play_xrun(alsa_play_t alsa_play, int err)
 		break;
 	case -ESTRPIPE:
 		glc_log(alsa_play->glc, GLC_DEBUG, "alsa_play", "suspended");
-		while ((err = snd_pcm_resume(alsa_play->pcm)) == -EAGAIN)
-			sched_yield();
+		while ((err = snd_pcm_resume(alsa_play->pcm)) == -EAGAIN) {
+			struct timespec one_ms = { .tv_sec = 0, .tv_nsec = 1000000 };
+			clock_nanosleep(CLOCK_MONOTONIC, 0, &one_ms, NULL);
+		}
 		if (err < 0) {
 			if (unlikely((err = snd_pcm_prepare(alsa_play->pcm)) < 0))
 				break;
