@@ -30,6 +30,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <X11/X.h>
 #include <X11/Xlib.h>
@@ -61,6 +62,43 @@
 #define GL_CAPTURE_CROP            0x10
 #define GL_CAPTURE_LOCK_FPS        0x20
 #define GL_CAPTURE_IGNORE_TIME     0x40
+
+/*
+ * The next functions come from:
+ * http://locklessinc.com/articles/locks/
+ */
+
+/* Compile read-write barrier */
+#define barrier() asm volatile("": : :"memory")
+
+/* Pause instruction to prevent excess processor bus usage */
+#define cpu_relax() asm volatile("pause\n": : :"memory")
+
+static inline uint32_t xchg_32(volatile void *ptr, uint32_t x)
+{
+	__asm__ __volatile__("xchgl %0,%1"
+				:"=r" ((uint32_t) x)
+				:"m" (*(volatile uint32_t *)ptr), "0" (x)
+				:"memory");
+	return x;
+}
+
+#define SPINBUSY 1
+typedef volatile uint32_t spinlock_t;
+
+static void spin_lock(spinlock_t *lock)
+{
+	do {
+		if (likely(!xchg_32(lock, SPINBUSY))) return;
+		while (*lock) cpu_relax();
+	} while(1);
+}
+
+static void spin_unlock(spinlock_t *lock)
+{
+	barrier();
+	*lock = 0;
+}
 
 typedef void (*FuncPtr)(void);
 typedef FuncPtr (*GLXGetProcAddressProc)(const GLubyte *procName);
@@ -113,7 +151,7 @@ struct gl_capture_video_stream_s {
 
 struct gl_capture_s {
 	glc_t *glc;
-	volatile unsigned capture_spinlock;
+	spinlock_t capture_spinlock;
 	glc_flags_t flags;
 
 	GLenum capture_buffer;
@@ -366,9 +404,9 @@ int gl_capture_start(gl_capture_t gl_capture)
 int gl_capture_stop(gl_capture_t gl_capture)
 {
 	if (gl_capture->flags & GL_CAPTURE_CAPTURING) {
-		while(!__sync_bool_compare_and_swap(&gl_capture->capture_spinlock,0,1));
+		spin_lock(&gl_capture->capture_spinlock);
 		gl_capture->flags &= ~GL_CAPTURE_CAPTURING;
-		gl_capture->capture_spinlock = 0;
+		spin_unlock(&gl_capture->capture_spinlock);
 		glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
 			 "stopping capturing");
 		gl_capture_clear_video_streams(gl_capture);
@@ -848,15 +886,15 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 	char *dma;
 	int ret = 0;
 
-	while(!__sync_bool_compare_and_swap(&gl_capture->capture_spinlock,0,1));
+	spin_lock(&gl_capture->capture_spinlock);
 
 	if (!(gl_capture->flags & GL_CAPTURE_CAPTURING)) {
-		gl_capture->capture_spinlock = 0;
+		spin_unlock(&gl_capture->capture_spinlock);
 		return 0; /* capturing not active */
 	}
 
 	gl_capture_get_video_stream(gl_capture, &video, dpy, drawable);
-	gl_capture->capture_spinlock = 0;
+	spin_unlock(&gl_capture->capture_spinlock);
 
 	/* get current time */
 	if (unlikely(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))
