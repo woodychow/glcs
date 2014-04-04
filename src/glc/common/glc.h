@@ -276,6 +276,8 @@ typedef struct {
 
 /** double-word aligned rows (GL_PACK_ALIGNMENT = 8) */
 #define GLC_VIDEO_DWORD_ALIGNED         0x1
+#define GLC_VIDEO_CAPTURING             0x2
+#define GLC_VIDEO_NEED_COLOR_UPDATE     0x4
 
 /**
  * \brief video data header
