@@ -5,6 +5,8 @@ Version 0.6.2
   created the pipe reader process.
 - Improve cmake files.
 - Fix compiler warnings
+- Replace sched_yield which is not implemented in Linux
+- Robustify gl_capture multithread sync design
 
 Version 0.6.1 - March 19, 2014
 
