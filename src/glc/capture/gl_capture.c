@@ -946,7 +946,7 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 		if (now - video->last < gl_capture->fps) {
 			struct timespec ts = { .tv_sec  = (gl_capture->fps + video->last - now)/1000000000,
 					       .tv_nsec = (gl_capture->fps + video->last - now)%1000000000 };
-			nanosleep(&ts,NULL);
+			clock_nanosleep(CLOCK_MONOTONIC, 0, &ts,NULL);
 		}
 	}
 

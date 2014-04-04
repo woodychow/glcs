@@ -690,7 +690,7 @@ int gl_play_read_callback(glc_thread_state_t *state)
 		if (pic_hdr->time > time + gl_play->sleep_threshold) {
 			struct timespec ts = { .tv_sec  = (pic_hdr->time - time)/1000000000,
 					       .tv_nsec = (pic_hdr->time - time)%1000000000 };
-			nanosleep(&ts,NULL);
+			clock_nanosleep(CLOCK_MONOTONIC, 0, &ts,NULL);
 		}
 
 		glXSwapBuffers(gl_play->dpy, gl_play->win);

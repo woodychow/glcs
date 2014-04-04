@@ -295,7 +295,7 @@ int alsa_play_play(alsa_play_t alsa_play, glc_audio_data_header_t *audio_hdr, ch
 		struct timespec ts = {
 		.tv_sec = (audio_hdr->time - time - duration - alsa_play->silence_threshold)/1000000000,
 		.tv_nsec = (audio_hdr->time - time - duration - alsa_play->silence_threshold)%1000000000 };
-		nanosleep(&ts,NULL);
+		clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL);
 	}
 	/*
 	 * This condition determine what will be the initial audio packet.
