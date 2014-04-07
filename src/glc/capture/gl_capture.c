@@ -51,6 +51,7 @@
 #include <glc/common/log.h>
 #include <glc/common/state.h>
 #include <glc/common/util.h>
+#include <glc/common/rational.h>
 #include <glc/common/optimization.h>
 
 #include "gl_capture.h"
@@ -154,8 +155,15 @@ struct gl_capture_s {
 	spinlock_t capture_spinlock;
 	glc_flags_t flags;
 
-	GLenum capture_buffer;
-	glc_utime_t fps;
+	GLenum capture_buffer;   /* GL_FRONT or GL_BACK */
+	glc_utime_t fps_period;  /* time in ns between 2 frames */
+
+	/*
+	 * The next 2 variables are used to correct error introduced if fps_period
+	 * is rational since the variable type is an integer.
+	 */
+	glc_utime_t fps_rem;     /* fix to apply every fps_rem_period frames */
+	unsigned fps_rem_period; /* period in frames which fps_rem is applied */
 
 	struct gl_capture_video_stream_s *video;
 
@@ -225,7 +233,9 @@ int gl_capture_init(gl_capture_t *gl_capture, glc_t *glc)
 	*gl_capture = (gl_capture_t) calloc(1, sizeof(struct gl_capture_s));
 
 	(*gl_capture)->glc = glc;
-	(*gl_capture)->fps = 1000000000 / 30;		/* default fps is 30 */
+	(*gl_capture)->fps_period = 1000000000 / 30;	/* default fps is 30 */
+	(*gl_capture)->fps_rem    = 1;
+	(*gl_capture)->fps_rem_period = 3;
 	(*gl_capture)->pack_alignment = 8;		/* read as dword aligned by default */
 	(*gl_capture)->format = GL_BGRA;		/* capture as BGRA data by default */
 	(*gl_capture)->bpp = 4;				/* since we use BGRA */
@@ -265,12 +275,20 @@ int gl_capture_set_read_buffer(gl_capture_t gl_capture, GLenum buffer)
 
 int gl_capture_set_fps(gl_capture_t gl_capture, double fps)
 {
+	glcs_Rational_t a, b = { 1000000000, 1}, c;
 	if (unlikely(fps <= 0.0))
 		return EINVAL;
 
-	gl_capture->fps = 1000000000 / fps;
+	a = glcs_d2q(fps, 1001000);
+	c = glcs_div_q(b, a);
+	gl_capture->fps_period = c.num/c.den;
+	gl_capture->fps_rem    = c.num%c.den;
+	gl_capture->fps_rem_period = c.den;
 	glc_log(gl_capture->glc, GLC_INFO, "gl_capture",
-		 "capturing at %f fps", fps);
+		"capturing at %f fps, interval %" PRIu64
+		" with a rational fix of %" PRIu64 " every %u frames",
+		fps, gl_capture->fps_period, gl_capture->fps_rem,
+		gl_capture->fps_rem_period);
 
 	return 0;
 }
@@ -898,17 +916,17 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 
 	/* get current time */
 	if (unlikely(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))
-		now = video->last + gl_capture->fps;
+		now = video->last + gl_capture->fps_period;
 	else
 		now = glc_state_time(gl_capture->glc);
 
 	/* has gl_capture->fps nanoseconds elapsed since last capture */
-	if ((now - video->last < gl_capture->fps) &&
+	if ((now - video->last < gl_capture->fps_period) &&
 	    !(gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
 	    !(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))
 		goto finish;
 
-	if (unlikely(video->last && now - video->last > 8*gl_capture->fps))
+	if (unlikely(video->last && now - video->last > 8*gl_capture->fps_period))
 		glc_log(gl_capture->glc, GLC_WARN, "gl_capture",
 			"first frame after %" PRIu64 " nsec",
 			now - video->last);
@@ -981,15 +999,17 @@ int gl_capture_frame(gl_capture_t gl_capture, Display *dpy, GLXDrawable drawable
 
 	if (unlikely((gl_capture->flags & GL_CAPTURE_LOCK_FPS) &&
 		    !(gl_capture->flags & GL_CAPTURE_IGNORE_TIME))) {
-		if (now - video->last < gl_capture->fps) {
-			struct timespec ts = { .tv_sec  = (gl_capture->fps + video->last - now)/1000000000,
-					       .tv_nsec = (gl_capture->fps + video->last - now)%1000000000 };
+		if (now - video->last < gl_capture->fps_period) {
+			struct timespec ts = { .tv_sec  = (gl_capture->fps_period + video->last - now)/1000000000,
+					       .tv_nsec = (gl_capture->fps_period + video->last - now)%1000000000 };
 			clock_nanosleep(CLOCK_MONOTONIC, 0, &ts,NULL);
 		}
 	}
 
 	/* increment by 1/fps seconds */
-	video->last += gl_capture->fps;
+	video->last += gl_capture->fps_period;
+	if (video->num_captured_frames%gl_capture->fps_rem_period == 0)
+		video->last += gl_capture->fps_rem;
 
 finish:
 	gl_capture_release_video_stream(video);
