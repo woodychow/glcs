@@ -94,7 +94,6 @@ struct timed_waitpid_param
 static void *timed_waitpid_threadfunc(void *arg)
 {
 	struct timed_waitpid_param *param = (struct timed_waitpid_param *)arg;
-	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	clock_nanosleep(CLOCK_MONOTONIC, 0, param->ts, NULL);
 	/*
 	 * If everything goes well, the thread should be cancelled inside
