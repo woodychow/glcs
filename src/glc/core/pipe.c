@@ -187,8 +187,21 @@ int pipe_sink_destroy(sink_t sink)
 int pipe_can_resume(sink_t sink)
 {
 	pipe_sink_t *pipe_sink = (pipe_sink_t*)sink;
-	if (pipe_sink->from)
-		ps_buffer_drain(pipe_sink->from);
+	if (pipe_sink->from) {
+		FILE *stream = NULL;
+		int ret;
+		int level = glc_log_get_level(pipe_sink->glc);
+		if (level >= GLC_DEBUG) {
+			stream = glc_log_get_stream(pipe_sink->glc);
+			fprintf(stream, "Before drain\n");
+			ps_buffer_state_text(pipe_sink->from, stream);
+		}
+		ret = ps_buffer_drain(pipe_sink->from);
+		if (level >= GLC_DEBUG) {
+			fprintf(stream, "Have drained %d packets\nAfter drain:\n", ret);
+			ps_buffer_state_text(pipe_sink->from, stream);
+		}
+	}
 	return 0;
 }
 
