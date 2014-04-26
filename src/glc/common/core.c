@@ -129,10 +129,13 @@ void glc_account_threads(glc_t *glc, long int single, long int multi)
 
 void glc_compute_threads_hint(glc_t *glc)
 {
-	if (unlikely(!glc->core->multi_process_num))
-		glc->core->multi_process_num = 1; /* Avoid division by 0 */
+	long int divisor;
+	if (glc->core->multi_process_num)
+		divisor = glc->core->multi_process_num; /* Avoid division by 0 */
+	else
+		divisor = 1;
 	glc->core->threads_hint  = sysconf(_SC_NPROCESSORS_ONLN) - glc->core->single_process_num;
-	glc->core->threads_hint /= glc->core->multi_process_num;
+	glc->core->threads_hint /= divisor;
 	if (unlikely(glc->core->threads_hint <  1))
 		glc->core->threads_hint = 1;
 	glc_log(glc, GLC_INFO, "core",

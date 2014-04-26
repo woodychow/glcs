@@ -169,6 +169,7 @@ int opengl_init(glc_t *glc)
 		gl_capture_lock_fps(opengl.gl_capture, atoi(env_val));
 
 	get_real_opengl();
+	/* Count host app rendering thread and possible filter threads on glcs side */
 	glc_account_threads(opengl.glc, 1, (opengl.scale_factor != 1.0) ||
 					   opengl.colorspace == CS_YCBCR_420JPEG);
 	return 0;

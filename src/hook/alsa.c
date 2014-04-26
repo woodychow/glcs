@@ -107,6 +107,7 @@ int alsa_init(glc_t *glc)
 	/* make sure libasound.so does not call our hooked functions */
 	alsa_unhook_so("*libasound.so*");
 
+	/* Assume 1 dedicated thread on the host app side + our own threads */
 	glc_account_threads(alsa.glc, 1+(alsa.capture != 0)+captured_stream_num, 0);
 
 	return 0;

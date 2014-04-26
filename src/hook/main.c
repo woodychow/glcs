@@ -244,7 +244,8 @@ int load_environ()
 	if ((env_val = getenv("GLC_RTPRIO")))
 		glc_set_allow_rt(&mpriv.glc, atoi(env_val));
 
-	glc_account_threads(&mpriv.glc,1,!(mpriv.flags & MAIN_COMPRESS_NONE));
+	/* Account for sink thread and possibly compress filter ones */
+	glc_account_threads(&mpriv.glc, 1, !(mpriv.flags & MAIN_COMPRESS_NONE));
 
 	glc_log(&mpriv.glc, GLC_DEBUG, "main", "flags: %08X", mpriv.flags);
 
