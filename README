@@ -1,27 +1,14 @@
-glcs is a fork by Olivier Langlois from glc v0.5.8 written by Pyry Haulos.
+# glcs is a fork by Olivier Langlois from glc v0.5.8 written by Pyry Haulos.
 
-without having tempered much with the original design,
-several bugs have been fixed and pretty much all the code
-went through review and modification to robustify the code
-and replace calls to deprecated system calls.
+without having tempered much with the original design, several bugs have been fixed and pretty much all the code went through review and modification to robustify the code and replace calls to deprecated system calls.
 
-Beside code quality improvement, the problem that glcs attempt to
-resolve over the original is that the glc file format is not adequate
-to store HD stream on disk.
+Beside code quality improvement, the problem that glcs attempt to resolve over the original is that the glc file format is not adequate to store HD stream on disk.
 
-As an example, to capture an opengl window at a 1080P resolution at 30fps,
-this represents about 2 million pixels of 24 bits or roughly 6MB per frame or
-180 MB per second. glc offer general lossless compression but the result is not
-good enough to consider long session of HD capture.
+As an example, to capture an opengl window at a 1080P resolution at 30fps, this represents about 2 million pixels of 24 bits or roughly 6MB per frame or 180 MB per second. glc offer general lossless compression but the result is not good enough to consider long session of HD capture.
 
-glcs propose a new flexible option allowing to pipe directly the raw audio video
-streams to a more specialised tool. for instance, ffmpeg. This allows to apply any video
-codec on the stream for a better compression ratio and also by leveraging the capability
-of the specialised tool, this open up new possibilities for glcs users such as live stream
-of a video game session on youtube.
+glcs propose a new flexible option allowing to pipe directly the raw audio video streams to a more specialised tool. for instance, ffmpeg. This allows to apply any video codec on the stream for a better compression ratio and also by leveraging the capability of the specialised tool, this open up new possibilities for glcs users such as live stream of a video game session on youtube.
 
-One more thing. glcs is optimized for Linux by using Linux specific functions. This is totally
-non-portable and this is an assumed decision.
+One more thing. glcs is optimized for Linux by using Linux specific functions. This is totally non-portable and this is an assumed decision.
 
 Here is my first 1080P real-time capture on Youtube:
 http://youtu.be/EYYeIefOgq0
@@ -29,24 +16,19 @@ http://youtu.be/EYYeIefOgq0
 Here is a 6 Mbps 1080P with libx264 veryfast preset having a webcam overlay + audio commentary
 http://youtu.be/jVBYTrcC21Q
 
-glc-capture:
-------------
+## glc-capture:
 
-The only thing that this program is doing is to process command line options and set the corresponding
-environment variables and then launch the hooked application with:
-
+The only thing that this program is doing is to process command line options and set the corresponding environment variables and then launch the hooked application with:
+```
 LD_PRELOAD=libglc-hook.so "${@}"
+```
+Personnally, I prefer defining my environment variables inside a shell script as in capture.sh as it makes the command line shorter and facilitate the parameter reuse among different applications.
 
-Personnally, I prefer defining my environment variables inside a shell script as in capture.sh as it
-makes the command line shorter and facilitate the parameter reuse among different applications.
+In the next section, only the environment variables are described but the descriptions are directly applicable to their command line options.
 
-In the next section, only the environment variables are described but the descriptions are directly
-applicable to their command line options.
+## Environment variables:
 
-Environment variables:
-----------------------
-
-GLC_LOG: <int>, default: 0
+### GLC_LOG: <int>, default: 0
 
 Determine the log verbosity. Available levels are:
 
@@ -58,43 +40,43 @@ Determine the log verbosity. Available levels are:
 
 Note that even if you choose the highest level, the trace flow is quite reasonable.
 
-GLC_LOG_FILE: <string>, default: stderr
+### GLC_LOG_FILE: <string>, default: stderr
 
 optional file destination for the logs.
 
-GLC_FPS: <double>, default: 30
+### GLC_FPS: <double>, default: 30
 
 stream fps
 
-GLC_AUDIO: <bool>
+### GLC_AUDIO: <bool>
 
 Audio stream captured by intercepting host application ALSA API calls.
 
-GLC_START: <bool>, default: 0
+### GLC_START: <bool>, default: 0
 
 Start capturing immediatly
 
-GLC_CAPTURE: <string>
+### GLC_CAPTURE: <string>
 
 take picture from front or back buffer. You need to choose 'back' for the indicator to be displayed.
 
-GLC_COMPRESS: <string>
+### GLC_COMPRESS: <string>
 
 compress stream using 'lzo', 'quicklz', 'lzjb' or 'none'
 
-GLC_TRY_PBO: <bool>
+### GLC_TRY_PBO: <bool>
 
 try GL_ARB_pixel_buffer_object to speed up readback. Read FAQ for more details about PBO.
 
-GLC_INDICATOR: <bool>
+### GLC_INDICATOR: <bool>
 
 Display a small red square in the upper left corner when capturing.
 
-GLC_RTPRIO: <bool> (new)
+### GLC_RTPRIO: <bool> (new)
 
 Use real-time priority for sound threads as they are very time sensitive. (See FAQ for more details)
 
-GLC_AUDIO_RECORD: <string> (modified)
+### GLC_AUDIO_RECORD: <string> (modified)
 
 record additional ALSA capture devices (mic)
 
@@ -103,14 +85,12 @@ The format is device#rate#channels;device2...
 Note that the delimiter has changed from comma (,) to pound (#) as it is not unusual that ALSA
 device names contain commas (ie: hw:0,0).
 
-GLC_PIPE: <string>
+### GLC_PIPE: <string>
 
-If defined, the video stream will be piped to an external program. The size of the pipe will
-be adjusted to be able to contain 2 video frames. For HD video, this will exceed the default system
-maximum. A Warning log will be issued if the limit is reach. You can increase your system limit with:
-
+If defined, the video stream will be piped to an external program. The size of the pipe will be adjusted to be able to contain 2 video frames. For HD video, this will exceed the default system maximum. A Warning log will be issued if the limit is reach. You can increase your system limit with:
+```
 # echo 16000000 > /proc/sys/fs/pipe-max-size
-
+```
 where 16000000 is the new max size in bytes.
 
 The external program will be passed 4 arguments:
@@ -120,61 +100,49 @@ The external program will be passed 4 arguments:
   3. fps
   4. output filename
 
-Script pipe_ffmpeg.sh is an example of external program to generate mkv files containing H.264.
-This can generate video files much smaller than with the legacy .glc file format. I have seen
-5 times smaller but with some encoding parameters tweeking, smaller results are certainly possible.
+Script pipe_ffmpeg.sh is an example of external program to generate mkv files containing H.264. This can generate video files much smaller than with the legacy .glc file format. I have seen 5 times smaller but with some encoding parameters tweeking, smaller results are certainly possible.
 
-Audio is not passed to the pipe. This choice is based on the fact that you can configure ALSA to create
-virtual devices that split the audio and sends it to the real sound card and to a sound loop device
-that can finally be captured by the external program.
+Audio is not passed to the pipe. This choice is based on the fact that you can configure ALSA to create virtual devices that split the audio and sends it to the real sound card and to a sound loop device that can finally be captured by the external program.
 
 A section in this file is dedicated to that type of ALSA config.
 
-GLC_COLORSPACE: <string> default: 420jpeg
+### GLC_COLORSPACE: <string> default: 420jpeg
 
 possible values are 420jpeg, bgr and bgra.
 
-bgra format will generate bigger frames in bytes but are much faster to capture. If raw frames are not
-the final format, bgra is the preferable value.
+bgra format will generate bigger frames in bytes but are much faster to capture. If raw frames are not the final format, bgra is the preferable value.
 
-GLC_PIPE_INVERT <int> default: 0
+### GLC_PIPE_INVERT <int> default: 0
 
-opengl, like the BMP image format, stores the image from bottom to top. ie. The first line of image
-appears first. video encoders expect the image data in the opposite direction. The topmost line should
-be first. You can adress this later down the pipe with, for instance, ffmpeg vflip filter but it is
-more efficient to have the correct orientation upstream.
+opengl, like the BMP image format, stores the image from bottom to top. ie. The first line of image appears first. video encoders expect the image data in the opposite direction. The topmost line should be first. You can adress this later down the pipe with, for instance, ffmpeg vflip filter but it is more efficient to have the correct orientation upstream.
 
-GLC_PIPE_DELAY <int> default: 0
+### GLC_PIPE_DELAY <int> default: 0
 
-delay in ms for writting the frames into the pipe after having created the pipe reader proces.
-This parameter has been added after having observed an small desynchronization between the
-audio and the video by having added a slow to initialize video input (webcam) to the mix in my
-ffmpeg setup.
+delay in ms for writting the frames into the pipe after having created the pipe reader proces. This parameter has been added after having observed an small desynchronization between the audio and the video by having added a slow to initialize video input (webcam) to the mix in my ffmpeg setup.
 
 http://ffmpeg.org/pipermail/ffmpeg-devel/2014-March/155704.html
 
-How to setup an audio split with ALSA
--------------------------------------
+## How to setup an audio split with ALSA
 
 Install the ALSA loopback driver:
-
+```
 $ sudo modprobe snd_aloop pcm_substreams=1
-
+```
 To verify that it successfully loaded:
-
+```
 $ aplay -l
-
+```
 You should see it appear:
-
+```
 card 1: Loopback [Loopback], device 0: Loopback PCM [Loopback PCM]
   Subdevices: 1/1
   Subdevice #0: subdevice #0
 card 1: Loopback [Loopback], device 1: Loopback PCM [Loopback PCM]
   Subdevices: 1/1
   Subdevice #0: subdevice #0
-
+```
 Edit your asound.conf file:
-
+```
 pcm.loop_capture {
     type hw
     card 1 # This is the card number used by the loopback driver
@@ -206,28 +174,20 @@ pcm.split {
 [ 0 1 0 1 ] # right
 ]
 }
-
+```
 Remarks:
 
-1. For slave "a" pcm device name. If you do not know what is your sound card device name,
-   "default" could be ok.
-2. The rate field is optional but recommended. It facilitate ALSA to find the optimal parameter
-   values. If absent, it will validate that the setup is possible for the whole range of possible
-   sampling rate values from 22500 (or lower) to 192000. The wider the range is, the harder it is
-   to find values for buffer size related params that will accomodate the range of possible rate value.
+1. For slave "a" pcm device name. If you do not know what is your sound card device name, "default" could be ok.
+2. The rate field is optional but recommended. It facilitate ALSA to find the optimal parameter values. If absent, it will validate that the setup is possible for the whole range of possible sampling rate values from 22500 (or lower) to 192000. The wider the range is, the harder it is to find values for buffer size related params that will accomodate the range of possible rate value.
 
 test your setup with:
-
+```
 speaker-test -c2 -r 48000 -D split
+```
+Finally use the "loop_capture" device to capture the sound from the pipe consumer to capture sound.  (ie: pipe_ffmpeg.sh) and configure your application (possibly /etc/openal/alsoft.conf) to use the "split" device as output.
 
-Finally use the "loop_capture" device to capture the sound from the pipe consumer to capture sound.
-(ie: pipe_ffmpeg.sh) and configure your application (possibly /etc/openal/alsoft.conf) to use the
-"split" device as output.
-
-Here is a working example of a more complex setup that takes a 24 bits 192KHz 7.1 input channels
-and downsample/downmix the signal sent to the loopback. The purpose is to have the best sound quality
-sent to the sound card while sending just what is necessary for the capture.
-
+Here is a working example of a more complex setup that takes a 24 bits 192KHz 7.1 input channels and downsample/downmix the signal sent to the loopback. The purpose is to have the best sound quality sent to the sound card while sending just what is necessary for the capture.
+```
 pcm.loop_48000_16 {
     type rate
     slave {
@@ -279,28 +239,25 @@ pcm.split {
 [ 0 0 0 0 0 0 0 1 0    0.22 ] # Side right
 ]
 }
+```
+## FAQ
 
-FAQ
----
+### Q: Which compression shoud I be using?
 
-Q: Which compression shoud I be using?
-
-A:
+### A:
 
 Based on these references,
 
 http://www.quicklz.com/
 http://denisy.dyndns.org/lzo_vs_lzjb/
 
-I think that it is safe to say that quicklz is preferable as it is faster for
-almost the same compression ratio than lzo.
+I think that it is safe to say that quicklz is preferable as it is faster for almost the same compression ratio than lzo.
 
-You can verify by yourself as the loglevel GLC_PERFORMANCE (2 and up) prints
-compression stats numbers.
+You can verify by yourself as the loglevel GLC_PERFORMANCE (2 and up) prints compression stats numbers.
 
-Q: What is PBO and what does it do?
+### Q: What is PBO and what does it do?
 
-A:
+### A:
 
 PBO is the acronym for Pixel Buffer Object.
 
@@ -312,80 +269,68 @@ You can check if your driver supports it with:
 
 $ glxinfo | grep GL_ARB_pixel_buffer_object
 
-Most drivers should have it today. The motivation to use it is that with it, you can capture
-asynchronously a screen. If activated, when the capture function is called, a PBO transfer is
-initiated and the result will be collected only the next time the capture function is called.
+Most drivers should have it today. The motivation to use it is that with it, you can capture asynchronously a screen. If activated, when the capture function is called, a PBO transfer is initiated and the result will be collected only the next time the capture function is called.
 
-This allow the processor to do other important thing meanwhile such as on the next frame to
-render while the transfer is performed by the opengl driver instead of just waiting the end
-of the transfer.
+This allow the processor to do other important thing meanwhile such as on the next frame to render while the transfer is performed by the opengl driver instead of just waiting the end of the transfer.
 
-That being said, this is the theory. With a small notebook on which I did part of my testing,
-I did not see any difference in performance between using PBO or not. My graphic card on that
-machine is:
+That being said, this is the theory. With a small notebook on which I did part of my testing, I did not see any difference in performance between using PBO or not. My graphic card on that machine is:
 
 Intel Corporation Atom Processor D4xx/D5xx/N4xx/N5xx Integrated Graphics Controller [8086:a011]
 with the i915 driver.
 
 Probably that with high-end AMD or Nvidia hardware, the result is different.
 
-You can verify by yourself as the loglevel GLC_PERFORMANCE (2 and up) prints
-the time spent to wait for the frame buffer transfer. ie:
-
+You can verify by yourself as the loglevel GLC_PERFORMANCE (2 and up) prints the time spent to wait for the frame buffer transfer. ie:
+```
 [  53.72s gl_capture  perf ] captured 82 frames in 4103709943 nsec
+```
+### Q: Why to use real-time priority for audio capturing and playback
 
-Q: Why to use real-time priority for audio capturing and playback
+### A:
 
-A:
+audio processing is not very demanding on the processor and especially for very fast processors but it has very strict timing requirements.
 
-audio processing is not very demanding on the processor and especially for very fast processors
-but it has very strict timing requirements.
-
-If you hear some clipping sounds while listening a capture it might be because the deadline to
-read/write from/to the audio buffer has not been met and has caused what ALSA calls a XRUN.
+If you hear some clipping sounds while listening a capture it might be because the deadline to read/write from/to the audio buffer has not been met and has caused what ALSA calls a XRUN.
 
 Setting the audio threads priority to Real-time like openal can do might help.
 
-Q: What are the prerequisites in order to be able to set realtime priority?
+### Q: What are the prerequisites in order to be able to set realtime priority?
 
-A:
+### A:
 
 in order to be able to configure rt prio threads, the output of
-
+```
 ulimit -r
-
+```
 must return a digit higher than 0 or says unlimited. You can manually adjust the limit with:
-
+```
 sudo ulimit -r 99
-
+```
 or add your user to some predefined realtime capable group.
 
 by consulting the output of the commands
-
+```
 cat /etc/group
 cat /etc/security/limits.d/*
-
+```
 try looking for a group called audio or realtime. If it is present, just add yourself to that group with:
-
+```
 # usermod -aG [additional_groups] [username]
-
+```
 and logoff/login for the change to become effective. You will know that the operation succeeded if
-
+```
 ulimit -r
-
+```
 returns the digital value found in the file located in /etc/security/limits.d/.
 
-If the group is not present on your system, it should not be very hard to create it with the help
-of these references:
+If the group is not present on your system, it should not be very hard to create it with the help of these references:
 
 https://wiki.archlinux.org/index.php/Groups
 http://jackaudio.org/linux_rt_config
 
 ---
 
-This code is provided entirely free of charge by the programmer in his spare
-time so donations would be greatly appreciated. Please consider donating to the
-address below.
+This code is provided entirely free of charge by the programmer in his spare time so donations would be greatly appreciated. Please consider donating to the address below.
 
 Olivier Langlois <olivier@trillion01.com>
 BTC: 1ABewnrZgCds7w9RH43NwMHX5Px6ex5uNR
