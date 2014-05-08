@@ -16,7 +16,7 @@ OPTION(LZO "LZO support" ON)
 OPTION(LZJB "LZJB support" ON)
 OPTION(BINARIES "Build and install glc-capture and glc-play" ON)
 OPTION(HOOK "Build and install glc-hook" ON)
-OPTION(SCRIPTS "Install sample scripts." ON)
+OPTION(SCRIPTS "Install sample scripts." OFF)
 
 
 # Define search and install paths.
