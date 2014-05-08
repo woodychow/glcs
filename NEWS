@@ -1,4 +1,4 @@
-Version 0.6.2
+Version 0.6.2 - May 08, 2014
 
 - Fix invert_framewriter when restart capture after an interrupted one.
 - Add the option to delay the writting of the frames in the pipe after having
@@ -7,6 +7,8 @@ Version 0.6.2
 - Fix compiler warnings
 - Replace sched_yield which is not implemented in Linux
 - Robustify gl_capture multithread sync design
+- Improve gl_capture logs
+- Remove unneeded PTHREAD_CANCEL_ASYNCHRONOUS type use.
 
 Version 0.6.1 - March 19, 2014
 
