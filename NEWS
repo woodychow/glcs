@@ -1,3 +1,6 @@
+Version 0.6.3 -
+- Initialized to NULL a pointer (https://github.com/lano1106/glcs/issues/12)
+
 Version 0.6.2 - May 08, 2014
 
 - Fix invert_framewriter when restart capture after an interrupted one.

@@ -142,9 +142,9 @@ void *glc_thread(void *argptr)
 	struct glc_thread_private_s *private = (struct glc_thread_private_s *) argptr;
 	glc_thread_t *thread = private->thread;
 	glc_thread_state_t state;
-
 	ps_packet_t read, write;
 
+	memset(&state, 0, sizeof(state));
 	write_size_set = ret = has_locked = packets_init = 0;
 	state.flags = state.read_size = state.write_size = 0;
 	state.ptr   = thread->ptr;
