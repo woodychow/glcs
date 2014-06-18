@@ -1,5 +1,7 @@
 Version 0.6.3 -
 - Initialized to NULL a pointer (https://github.com/lano1106/glcs/issues/12)
+- Fix regression where some application fork a child where the actual opengl rendering happens
+  (https://github.com/lano1106/glcs/issues/11)
 
 Version 0.6.2 - May 08, 2014
 

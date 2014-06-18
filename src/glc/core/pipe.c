@@ -418,6 +418,16 @@ static int open_pipe(pipe_sink_t *pipe_sink, glc_video_format_message_t *format,
 		sigemptyset(&set);
 		sigprocmask(SIG_SETMASK, &set, NULL);
 
+		/*
+		 * Unset LD_PRELOAD to avoid to have more than 1 app captured.
+		 * Otherwise spawned children would interfere when initialising
+		 * glcs such as resetting the log file.
+		 *
+		 * We could be more careful and just remove libglc-hook.so
+		 * if this variable is used for other things...
+		 */
+		unsetenv("LD_PRELOAD");
+
 		/* exec */
 		execl(pipe_sink->params.exec_file,
 			basename(pipe_sink->params.exec_file),
