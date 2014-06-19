@@ -17,12 +17,12 @@ ENDIF (UNIX)
 
 IF (BINARIES)
     ADD_EXECUTABLE("capture" "capture.c")
-    TARGET_LINK_LIBRARIES("capture" "dl")
+    TARGET_LINK_LIBRARIES("capture" "dl" ${CMAKE_THREAD_LIBS_INIT})
     SET_TARGET_PROPERTIES("capture" PROPERTIES OUTPUT_NAME "glc-capture")
 
     ADD_EXECUTABLE("play" "play.c")
     TARGET_LINK_LIBRARIES("play" "glc-core" "glc-play" "glc-export"
-                          ${PACKETSTREAM_LIBRARY})
+                          ${PACKETSTREAM_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
     SET_TARGET_PROPERTIES("play" PROPERTIES OUTPUT_NAME "glc-play")
 
     IF (UNIX)
