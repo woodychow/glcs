@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 usage() {
   printf "Usage: %s video_size pixel_format framerate base_output_filename\n" "$0"
